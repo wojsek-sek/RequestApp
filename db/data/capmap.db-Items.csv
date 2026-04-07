@@ -1,0 +1,21 @@
+ID,request_ID,description,quantity,price,category_code,supplierId
+1f3c2a11-0c2b-4f7d-8f2a-9d0e1c2b3a4f,0c2cfc26-2ff8-4c44-9a24-4a0f2a3f3b5a,Business laptop (15-inch),25,850.00,IT,1000000001
+2a4b5c6d-7e8f-4a1b-9c2d-3e4f5a6b7c8d,0c2cfc26-2ff8-4c44-9a24-4a0f2a3f3b5a,Docking station,25,120.00,IT,1000000001
+3b2a1c0d-9e8f-4d3c-8b7a-6f5e4d3c2b1a,2a49c7e5-4f31-4d1e-bc93-5edc7261f4e9,Conveyor belt service package,1,9500.00,MA,1000000002
+4c3d2e1f-0a9b-4c8d-9e7f-6a5b4c3d2e1f,2a49c7e5-4f31-4d1e-bc93-5edc7261f4e9,Replacement rollers set,4,2125.00,MA,1000000002
+5d4e3f2a-1b0c-4d9e-8f7a-6b5c4d3e2f1a,6f40978e-bb9a-4b63-8e07-19b0c8e2f019,CAD license (12 months),40,800.00,SW,1000000003
+6e5f4a3b-2c1d-4e0f-9a8b-7c6d5e4f3a2b,6f40978e-bb9a-4b63-8e07-19b0c8e2f019,License administration service,1,0.00,SW,1000000003
+7f6a5b4c-3d2e-4f1a-8b9c-0d1e2f3a4b5c,7c7e11b8-0f33-45d8-9cc8-2ef0a3b6f7fd,Ergonomic office chair,50,180.00,FU,1000000004
+8a7b6c5d-4e3f-4a2b-9c0d-1e2f3a4b5c6d,7c7e11b8-0f33-45d8-9cc8-2ef0a3b6f7fd,Chair delivery and setup,1,500.00,FU,1000000004
+9b8c7d6e-5f4a-4b3c-8d1e-2f3a4b5c6d7e,9a8d30c0-0b1b-4d34-b7a7-e9c9a5a6d4e2,42U server rack,2,3200.00,IT,1000000001
+0c9d8e7f-6a5b-4c4d-9e2f-3a4b5c6d7e8f,9a8d30c0-0b1b-4d34-b7a7-e9c9a5a6d4e2,PDU and cable management kit,2,650.00,IT,1000000001
+1d0e9f8a-7b6c-4d5e-8f3a-4b5c6d7e8f9a,ad6d98d7-0f7e-4aa0-9a0a-34cbe2a56d7b,Optical proximity sensor,30,210.00,MA,1000000002
+2e1f0a9b-8c7d-4e6f-9a4b-5c6d7e8f9a0b,ad6d98d7-0f7e-4aa0-9a0a-34cbe2a56d7b,Installation and calibration,1,1200.00,MA,1000000002
+3f2a1b0c-9d8e-4f7a-8b5c-6d7e8f9a0b1c,b7d6a4cf-6b8a-4c07-9f6e-7b2b7b0a0d55,Backup storage (TB-month),12,500.00,SW,1000000003
+4a3b2c1d-0e9f-4a8b-9c6d-7e8f9a0b1c2d,b7d6a4cf-6b8a-4c07-9f6e-7b2b7b0a0d55,Backup monitoring add-on,12,500.00,SW,1000000003
+5b4c3d2e-1f0a-4b9c-8d7e-9f0a1b2c3d4e,c3b0a8d4-4c0b-4e35-9df7-1cc3a2f6a4b1,Forklift lease (monthly),12,2500.00,MA,1000000002
+6c5d4e3f-2a1b-4c0d-9e8f-0a1b2c3d4e5f,c3b0a8d4-4c0b-4e35-9df7-1cc3a2f6a4b1,Insurance and service package,12,500.00,MA,1000000002
+7d6e5f4a-3b2c-4d1e-8f9a-1b2c3d4e5f6a,d28d5a7b-2a58-4fbb-8d6a-9a2f1f4e6c3d,Conference room display (86-inch),2,4200.00,IT,1000000001
+8e7f6a5b-4c3d-4e2f-9a0b-2c3d4e5f6a7b,d28d5a7b-2a58-4fbb-8d6a-9a2f1f4e6c3d,Video conferencing camera,2,1550.00,IT,1000000001
+9f8a7b6c-5d4e-4f3a-8b1c-3d4e5f6a7b8c,f1c4b2e9-9d0a-4c7f-9b0d-2a1b3c4d5e6f,CNC tool holders set,1,45000.00,MA,1000000002
+0a9b8c7d-6e5f-4a4b-9c2d-4e5f6a7b8c9d,f1c4b2e9-9d0a-4c7f-9b0d-2a1b3c4d5e6f,Cutting inserts (bulk pack),1,43000.00,MA,1000000002

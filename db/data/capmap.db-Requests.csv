@@ -1,0 +1,11 @@
+ID,title,totalAmount,currency,costCenter,status_code,approver,approvalDate,justification,region
+0c2cfc26-2ff8-4c44-9a24-4a0f2a3f3b5a,Laptop refresh for Finance,24500.00,USD,CC1000,D,USER_FI_01,2026-03-10T09:00:00.000Z,Replace 25 outdated laptops for Finance.,EU
+2a49c7e5-4f31-4d1e-bc93-5edc7261f4e9,Warehouse conveyor maintenance,18000.00,USD,CC2000,S,USER_OPS_02,2026-03-15T13:30:00.000Z,Preventive maintenance for conveyor belts.,EU
+6f40978e-bb9a-4b63-8e07-19b0c8e2f019,New CAD software licenses,32000.00,USD,CC3000,A,USER_ENG_01,2026-02-21T08:15:00.000Z,Annual CAD subscription for Engineering.,US
+7c7e11b8-0f33-45d8-9cc8-2ef0a3b6f7fd,Office chairs replacement,9500.00,USD,CC1000,R,USER_HR_03,2026-03-05T11:45:00.000Z,Ergonomic chairs for open space area.,EU
+9a8d30c0-0b1b-4d34-b7a7-e9c9a5a6d4e2,Server rack expansion,41000.00,USD,CC4000,S,USER_IT_02,2026-03-18T10:20:00.000Z,Expand capacity for new project workloads.,US
+ad6d98d7-0f7e-4aa0-9a0a-34cbe2a56d7b,Production line sensor upgrade,27500.00,USD,CC2000,D,USER_OPS_01,2026-03-01T07:00:00.000Z,Upgrade sensors to reduce downtime.,EU
+b7d6a4cf-6b8a-4c07-9f6e-7b2b7b0a0d55,Cloud backup service renewal,12000.00,USD,CC4000,A,USER_IT_01,2026-02-28T16:10:00.000Z,Renew backup service for 12 months.,US
+c3b0a8d4-4c0b-4e35-9df7-1cc3a2f6a4b1,Factory forklift lease,36000.00,USD,CC2000,S,USER_OPS_03,2026-03-20T12:00:00.000Z,Lease two forklifts for logistics.,EU
+d28d5a7b-2a58-4fbb-8d6a-9a2f1f4e6c3d,Conference room AV upgrade,15500.00,USD,CC1000,D,USER_ADMIN_01,2026-03-08T14:00:00.000Z,Upgrade AV equipment for meeting rooms.,EU
+f1c4b2e9-9d0a-4c7f-9b0d-2a1b3c4d5e6f,New CNC machine toolset,88000.00,USD,CC3000,A,USER_ENG_02,2026-02-12T06:30:00.000Z,Tooling set for the new CNC machine.,US

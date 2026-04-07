@@ -1,0 +1,5 @@
+code,locale,name,descr
+D,en,Draft,Request is currently in draft mode
+S,en,Submitted,Request has been submitted for approval
+A,en,Approved,Request has been approved
+R,en,Rejected,Request has been rejected

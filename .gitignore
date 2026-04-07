@@ -1,0 +1,16 @@
+@cds-models
+.env
+.cursorrules
+.vscode
+.cursor
+mta_archives/
+.dist
+*.db
+*.sqlite
+# --- Dependencies ---
+node_modules/
+# --- Build Artifacts and Deployment ---
+gen/
+dist/
+*.mtar
+*.mta

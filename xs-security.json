@@ -1,0 +1,31 @@
+{
+  "xsappname": "capmap-requests",
+  "tenant-mode": "dedicated",
+  "scopes": [
+    { "name": "$XSAPPNAME.Viewer", "description": "Viewer scope" },
+    { "name": "$XSAPPNAME.RegionalManager", "description": "RegionalManager scope" }
+  ],
+  "attributes": [
+    {
+      "name": "Region",
+      "description": "Geographical region",
+      "valueType": "string"
+    }
+  ],
+  "role-templates": [
+    {
+      "name": "Viewer",
+      "description": "View all requests",
+      "scope-references": [ "$XSAPPNAME.Viewer" ]
+    },
+    {
+      "name": "RegionalManager",
+      "description": "Manage regional requests",
+      "scope-references": [ 
+        "$XSAPPNAME.RegionalManager",
+        "$XSAPPNAME.Viewer" 
+      ],
+      "attribute-references": [ "Region" ]
+    }
+  ]
+}
