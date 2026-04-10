@@ -5,13 +5,14 @@ using { sap.common.Currencies as CommonCurrencies } from '@sap/cds/common.cds';
 using { API_COSTCENTER_V2 as extV2 } from './external/API_COSTCENTER_V2';
 // Import V4 API (Business Partners)
 using { PACBusinessPartner as extV4 } from './external/API_BUSINESS_PARTNER_V4';
+// Import Product API
+using { API_PRODUCT_SRV as extProduct } from './external/API_PRODUCT_SRV';
+
 
 @requires: 'authenticated-user'
 @path: '/service/request'   
 service RequestService {
 
-    // Expose the main Requests entity with Fiori Draft handling enabled
-    // This allows users to save requests as drafts before submitting
     @restrict: [
         // 1. Viewer może CZYTAĆ wszystko (brak warunku 'where')
         { grant: 'READ', to: 'Viewer' },
@@ -23,8 +24,40 @@ service RequestService {
             where: 'region = $user.Region' 
         }
     ]
+    // Expose the main Requests entity with Fiori Draft handling enabled
+    // This allows users to save requests as drafts before submitting
+    @UI.UpdateHidden: isReadOnly
+    @UI.DeleteHidden: isReadOnly
     @odata.draft.enabled
-    entity Requests as projection on my.Requests;
+    entity Requests as projection on my.Requests {
+        *,
+        virtual isActionable : Boolean,
+        virtual isReadOnly : Boolean
+    } actions {
+        @Common.IsActionCritical: true
+        @Core.OperationAvailable: in.isActionable
+        @Common.SideEffects: {
+            TargetProperties: [
+                'status_code',
+                'approvalDate',
+                'approver',
+                'isActionable',
+                'isReadOnly'
+            ]
+        }
+        action approve() returns Requests;
+        @Core.OperationAvailable: in.isActionable
+        @Common.SideEffects: {
+            TargetProperties: [
+                'status_code',
+                'approvalDate',
+                'approver',
+                'isActionable',
+                'isReadOnly'
+            ]
+        }
+        action reject() returns Requests;  
+    };
 
     // Expose the Items entity
     // Note: No need for @odata.draft.enabled here, as Items are linked 
@@ -36,6 +69,7 @@ service RequestService {
     @readonly
     entity Statuses as projection on my.Statuses;
 
+    @readonly
     entity Categories as projection on my.Categories;
 
     @readonly
@@ -46,8 +80,15 @@ service RequestService {
 
     @readonly
     entity CostCenters as projection on extV2.A_CostCenter {
+        @title : '{i18n>CostCenter}'
         key CostCenter,
+        @title : '{i18n>CompanyCode}'
         CompanyCode,
+        @title : '{i18n>Name}'
+        virtual Name : String(20),
+        @title : '{i18n>Description}'
+        virtual Description : String(40),
+        @UI.Hidden
         to_Text
     };
 
@@ -61,4 +102,11 @@ service RequestService {
         vendorCode as Code
     };
 
+    @readonly
+    entity Products as projection on extProduct.A_Product {
+        key Product as ID,
+        ProductType as Type,
+        NetWeight,
+        to_Description
+    };
 }   

@@ -32,31 +32,7 @@
   "imports": {
     "#cds-models/*": "./@cds-models/*/index.js"
   },
-  "cds": {
-    "requires": {
-      "[production]": {
-        "db": "hana",
-        "auth": "xsuaa"
-      },
-      "API_COSTCENTER_V2": {
-        "kind": "odata-v2",
-        "model": "srv/external/API_COSTCENTER_V2",
-        "credentials": {
-          "url": "https://sandbox.api.sap.com/s4hanacloud/sap/opu/odata/sap/API_COSTCENTER_SRV"
-        }
-      },
-      "PACBusinessPartner": {
-        "kind": "odata-v4",
-        "model": "srv/external/API_BUSINESS_PARTNER_V4",
-        "credentials": {
-          "url": "https://sandbox.api.sap.com/PackagingAgreementsCollaboration/odata/v4/MasterDataService"
-        }
-      },
-      "destinations": true,
-      "connectivity": true,
-      "html5-repo": true
-    }
-  },
+
   "workspaces": [
     "app/*"
   ],

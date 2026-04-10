@@ -1,7 +1,8 @@
 import cds from '@sap/cds';
-
+import { Requests } from '#cds-models/RequestService';
 // Export the main service class
 export default class RequestService extends cds.ApplicationService {
+
     private _criticalityFromStatusCode(code?: string): number {
         switch (code) {
             case 'A':
@@ -22,6 +23,10 @@ export default class RequestService extends cds.ApplicationService {
         
         // Connect to the external OData V4 service (Business Partners)
         const businessPartnerApi = await cds.connect.to('PACBusinessPartner');
+
+        // Connect to the external OData V2 service (Products)
+        const productApi = await cds.connect.to('API_PRODUCT_SRV');
+
 
         // ---------------------------------------------------------
         // MASHUP 1: Delegate READ requests for Cost Centers (V2)
@@ -47,6 +52,16 @@ export default class RequestService extends cds.ApplicationService {
         // MASHUP 2: Delegate READ requests for Suppliers (V4)
         // ---------------------------------------------------------
         // Using string 'Suppliers' guarantees the entity is found in runtime
+        this.before('READ', 'Suppliers', (req) => {
+            const query = req.query.SELECT;
+            // Sprawdzamy, czy zapytanie ma narzucone konkretne kolumny (np. przez Fiori $select)
+            if (query && query.columns) {
+                // Wymuszamy pobranie prawdziwych pól z S/4HANA, aby nasz 'after' handler miał na czym pracować
+                query.columns.push({ ref: ['businessPartnerName1'] });
+                query.columns.push({ ref: ['businessPartnerName2'] });
+            }
+        });
+
         this.on('READ', 'Suppliers', async (req) => {
             // Forward the incoming query to the external V4 system
             try {
@@ -58,6 +73,23 @@ export default class RequestService extends cds.ApplicationService {
                 return [
                     { ID: '100000', businessPartnerName1: 'Demo', businessPartnerName2: 'Supplier 1', Code: 'V100000' },
                     { ID: '200000', businessPartnerName1: 'Demo', businessPartnerName2: 'Supplier 2', Code: 'V200000' },
+                ];
+            }
+        });
+
+
+        // ---------------------------------------------------------
+        // MASHUP 3: Delegate READ requests for Products (V2)
+        // ---------------------------------------------------------
+        this.on('READ', 'Products', async (req) => {
+            try {
+                return await productApi.run(req.query);
+            } catch (error) {
+                console.error('[Mock/API Error] Products:', (error as Error).message);
+                return [
+                    { ID: 'HT-1000', Type: 'HAWA', Description: 'Notebook Basic 15' },
+                    { ID: 'HT-1001', Type: 'HAWA', Description: 'Notebook Basic 17' },
+                    { ID: 'HT-1002', Type: 'HAWA', Description: 'Notebook Professional 15' }
                 ];
             }
         });
@@ -110,14 +142,123 @@ export default class RequestService extends cds.ApplicationService {
             }
         });
 
-        // this.after('READ', 'Requests', (each) => {
-        //     switch (each.status_code) {
-        //         case 'A': each.statusCriticality = 3; break; // Approved -> Green
-        //         case 'R': each.statusCriticality = 1; break; // Rejected -> Red
-        //         case 'S': each.statusCriticality = 2; break; // Submitted -> Yellow
-        //         default:  each.statusCriticality = 0;        // Draft -> Grey
-        //     }
-        // });
+        // ---------------------------------------------------------
+        // CUSTOM ACTIONS: Approve & Reject
+        // ---------------------------------------------------------
+        this.on('approve', 'Requests', async (req) => {
+            // req.params[0] holds the UUID of the active entity
+            const keys = req.params[0];
+            
+            // req.user.id holds the username from the mock auth (e.g., 'admin-eu') or XSUAA
+            const currentUserId = req.user.id;
+
+            await UPDATE(Requests)
+                .set({ 
+                    status_code: 'A',
+                    approvalDate: new Date().toISOString(),
+                    approver: currentUserId // Systemowy wpis bez ingerencji usera
+                })
+                .where(keys);
+
+            const updated = await SELECT.one.from(Requests).where(keys);
+            return updated;
+        });
+        
+        this.on('reject', 'Requests', async (req) => {
+            const keys = req.params[0];
+            const currentUserId = req.user.id;
+
+            await UPDATE(Requests)
+                .set({ 
+                    status_code: 'R',
+                    approvalDate: new Date().toISOString(),
+                    approver: currentUserId
+                })
+                .where(keys);
+
+            const updated = await SELECT.one.from(Requests).where(keys);
+            
+            return updated;
+        });
+
+        // ---------------------------------------------------------
+        // PRE-READ: Inject required fields for virtual calculations
+        // ---------------------------------------------------------
+        this.before('READ', 'Requests', (req) => {
+            const query = req.query.SELECT;
+            // Force fetching status_code from HANA/SQLite so our 'after' logic has data to evaluate
+            // Szukamy, czy w tablicy kolumn znajduje się już 'status_code'
+            // Sprawdzamy, czy zapytanie w ogóle ma narzuconą listę kolumn 
+            // (Jeśli nie ma query.columns, to znaczy że to SELECT *, więc nic nie musimy dodawać)
+            if (query && query.columns) {
+                
+                // Szukamy, czy w tablicy kolumn znajduje się już 'status_code'
+                const hasStatusCode = query.columns.some((col: any) => 
+                    col.ref && col.ref.includes('status_code')
+                );
+
+                // Wstrzykujemy kolumnę TYLKO, jeśli Fiori samo o nią nie poprosiło
+                if (!hasStatusCode) {
+                    query.columns.push({ ref: ['status_code'] });
+                }
+            }
+        });
+
+        // ---------------------------------------------------------
+        // POST-READ: Calculate UI virtual fields
+        // ---------------------------------------------------------
+        this.after('READ', 'Requests', (each) => {
+            // Guard clause to prevent errors on metadata requests
+            if (!each) return;
+
+            // Now 'each.status_code' is guaranteed to be populated
+            if (each.status_code === 'A' || each.status_code === 'R') {
+                each.isActionable = false;
+                each.isReadOnly = true;
+            } else {
+                each.isActionable = true;
+                each.isReadOnly = false;
+            }
+        });
+
+        // ---------------------------------------------------------
+        // MASHUP 1: Cost Centers (Virtual Fields & $expand)
+        // ---------------------------------------------------------
+        this.before('READ', 'CostCenters', (req) => {
+            const query = req.query.SELECT;
+            if (query && query.columns) {
+                // Wymuszamy na zapytaniu rozszerzenie (expand) asocjacji do tekstów
+                const hasToText = query.columns.some((col: any) => col.ref && col.ref.includes('to_Text'));
+                if (!hasToText) {
+                    query.columns.push({ ref: ['to_Text'], expand: ['*' as any] });
+                }
+            }
+        });
+
+        this.after('READ', 'CostCenters', (each, req) => {
+            if (!each) return;
+            
+            // Jeśli przyszły do nas teksty z S/4HANA
+            if (each.to_Text && each.to_Text.length > 0) {
+                
+            const userLocale = req.locale || 'en';
+            
+            // 2. Przekształcamy np. 'en-US' lub 'pl' na format S/4HANA (2 znaki, wielkie litery: 'EN', 'PL')
+            const sapLang = userLocale.substring(0, 2).toUpperCase();
+
+            // 3. Łańcuch opadający (Fallback chain):
+            // - Najpierw szukamy języka użytkownika
+            // - Jeśli w S/4HANA nie ma tego tłumaczenia, szukamy angielskiego
+            // - Jeśli nie ma nawet angielskiego, bierzemy cokolwiek (pierwszy element)
+            const textRecord = each.to_Text.find((t: any) => t.Language === sapLang) 
+                            || each.to_Text.find((t: any) => t.Language === 'EN') 
+                            || each.to_Text[0];
+                
+                // Przypisujemy do naszych wirtualnych pól
+                each.Name = textRecord.CostCenterName;
+                each.Description = textRecord.CostCenterDescription;
+            }
+        });
 
         // Call the super.init() to ensure standard CAP handlers (like Drafts) are loaded
         return super.init();

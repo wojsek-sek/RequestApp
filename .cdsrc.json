@@ -1,0 +1,54 @@
+{
+    "requires": {
+      "[production]": {
+        "db": "hana",
+        "auth": "xsuaa"
+      },
+      "auth": {
+        "users": {
+          "admin-eu": {
+            "password" : "test",
+            "roles": ["Viewer", "RegionalManager"],
+            "attr": {
+              "Region": ["EU","PL","EN"]
+            }
+          },
+          "admin-us": {
+            "password" : "test2",
+            "roles": ["Viewer", "RegionalManager"],
+            "attr": {
+              "Region": ["US"]
+            }
+          },
+          "readonly-user": {
+            "roles": ["Viewer"]
+          }
+        }
+      },
+      "API_COSTCENTER_V2": {
+        "kind": "odata-v2",
+        "model": "srv/external/API_COSTCENTER_V2",
+        "credentials": {
+          "url": "https://sandbox.api.sap.com/s4hanacloud/sap/opu/odata/sap/API_COSTCENTER_SRV"
+        }
+      },
+      "PACBusinessPartner": {
+        "kind": "odata-v4",
+        "model": "srv/external/API_BUSINESS_PARTNER_V4",
+        "credentials": {
+          "url": "https://sandbox.api.sap.com/PackagingAgreementsCollaboration/odata/v4/MasterDataService"
+        }
+      },
+      "API_PRODUCT_SRV": {
+        "kind": "odata-v2",
+        "model": "srv/external/API_PRODUCT_SRV",
+        "credentials": {
+          "url": "https://sandbox.api.sap.com/s4hanacloud/sap/opu/odata/sap/API_PRODUCT_SRV"
+        }
+      },
+      "destinations": true,
+      "connectivity": true,
+      "html5-repo": true
+    }
+  }
+  

@@ -34,11 +34,15 @@ entity Requests : cuid, managed, ApprovalTracking {
 // ---------------------------------------------------------
 entity Items : cuid {
     request      : Association to Requests;
+    
+    // Field for integrating S/4HANA Product Master Data
+    productId    : String(40)   @title: 'Product ID (S/4HANA)';
     description  : String(200)  @title: 'Item Description';
     quantity     : Integer      @title: 'Quantity';
     price        : Decimal(15, 2) @title: 'Unit Price (Net)';
     category     : Association to Categories @title: 'Category';
     supplierId   : String(10) @title: 'Suggested Supplier (BP)';
+    
     // Simple math expression for calculated field
     itemTotal    : Decimal(15, 2) = (quantity * price) @title: 'Item Total';
 }

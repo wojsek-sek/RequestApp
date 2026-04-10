@@ -14,10 +14,6 @@ annotate service.Requests with @(
             },
             {
                 $Type : 'UI.DataField',
-                Value : justification,
-            },
-            {
-                $Type : 'UI.DataField',
                 Value : title,
             },
             {
@@ -38,6 +34,10 @@ annotate service.Requests with @(
                 Value : status_code,
                 Criticality : status.criticality,
                 CriticalityRepresentation : #WithoutIcon
+            },
+            {
+                $Type : 'UI.DataField',
+                Value : justification,
             },
         ],
     },
@@ -140,6 +140,12 @@ annotate service.Requests with @(
             Target : '@UI.DataPoint#TotalAmountDataPoint',
         }
     ],
+
+    UI.Identification: [
+            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.approve', Label: 'Approve', Criticality: 3 },
+            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.reject', Label: 'Reject', Criticality: 1 }
+    ],
+    
 );
 
 // Value helps + UI behavior
@@ -149,28 +155,16 @@ annotate service.Requests with {
     modifiedAt @UI.Hidden;
     modifiedBy @UI.Hidden;
     ID @UI.Hidden;
-    status_code @(
-        Common.Label: 'Status',
-        Common.FieldControl: #Mandatory,
-        Common.ValueList: {
-            $Type : 'Common.ValueListType',
-            CollectionPath : 'Statuses',
-            Parameters : [
-                {
-                    $Type : 'Common.ValueListParameterInOut',
-                    LocalDataProperty : status_code,
-                    ValueListProperty : 'code',
-                },
-                {
-                    $Type : 'Common.ValueListParameterDisplayOnly',
-                    ValueListProperty : 'name',
-                },
-            ],
-        }
-    );
+
+    status @readonly;
+    status_code @readonly;
+    approver    @readonly;
+    approvalDate @readonly;
+
+    justification @UI.MultiLineText: true;
 
     costCenter @(
-        Common.Label: 'Cost Center',
+        Common.Label: '{i18n>CostCenter}',
         Common.ValueList: {
             $Type : 'Common.ValueListType',
             CollectionPath : 'CostCenters',
@@ -179,17 +173,31 @@ annotate service.Requests with {
                     $Type : 'Common.ValueListParameterInOut',
                     LocalDataProperty : costCenter,
                     ValueListProperty : 'CostCenter',
+                    Label: '{i18n>CostCenter}'
                 },
                 {
                     $Type : 'Common.ValueListParameterDisplayOnly',
                     ValueListProperty : 'CompanyCode',
+                    Label: '{i18n>CompanyCode}'
+
+                },
+                {
+                    $Type : 'Common.ValueListParameterDisplayOnly',
+                    ValueListProperty : 'Name',
+                    Label: '{i18n>CompanyCode}'
+
+                },
+                {
+                    $Type : 'Common.ValueListParameterDisplayOnly',
+                    ValueListProperty : 'Description',
                 },
             ],
         }
     );
 
     currency @(
-        Common.Label: 'Currency',
+        Common.ValueListWithFixedValues: true,
+        Common.Label: '{i18n>Currency}',
         Common.ValueList: {
             $Type : 'Common.ValueListType',
             CollectionPath : 'Currencies',
@@ -206,6 +214,7 @@ annotate service.Requests with {
             ],
         }
     );
+
 };
 
 annotate service.Items with @(
@@ -230,11 +239,13 @@ annotate service.Items with @(
             $Type : 'UI.DataField',
             Value : category_code,
             Label : '{i18n>Category}',
+            @HTML5.CssDefaults: {width: '10em'}
         },
         {
             $Type : 'UI.DataField',
             Value : supplierId,
             Label : '{i18n>Supplier}',
+            @HTML5.CssDefaults: {width: '10em'}
         },
         {
             $Type : 'UI.DataField',
@@ -248,10 +259,11 @@ annotate service.Items with {
     ID @UI.Hidden;
     request @UI.Hidden;
 
-    category @(
+    category_code @(
+        Common.ValueListWithFixedValues: true,
         Common.Text: category.name,
         Common.TextArrangement: #TextOnly,
-        Common.Label: 'Category',
+        Common.Label: '{i18n>Category}',
         Common.ValueList: {
             $Type : 'Common.ValueListType',
             CollectionPath : 'Categories',
@@ -270,7 +282,7 @@ annotate service.Items with {
     );
 
     supplierId @(
-        Common.Label: 'Supplier',
+        Common.Label: '{i18n>Supplier}',
         Common.ValueList: {
             $Type : 'Common.ValueListType',
             CollectionPath : 'Suppliers',
@@ -284,7 +296,21 @@ annotate service.Items with {
                     $Type : 'Common.ValueListParameterDisplayOnly',
                     ValueListProperty : 'Name',
                 },
+                { $Type: 'Common.ValueListParameterDisplayOnly', ValueListProperty: 'Code' }
             ],
+        }
+    );
+
+    // Bind the Product ID to the S/4HANA Product Master
+    productId @(
+        Common.ValueList: {
+            Label: '{i18n>Products}',
+            CollectionPath: 'Products',
+            Parameters: [
+                { $Type: 'Common.ValueListParameterInOut', LocalDataProperty: productId, ValueListProperty: 'ID' },
+                { $Type: 'Common.ValueListParameterDisplayOnly', ValueListProperty: 'Description' },
+                { $Type: 'Common.ValueListParameterDisplayOnly', ValueListProperty: 'Type' }
+            ]
         }
     );
 };
