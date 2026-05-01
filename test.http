@@ -1,0 +1,73 @@
+### Zmienne globalne środowiska
+@server = http://localhost:4004
+# Zmień na swoje dane logowania jeśli używasz mock auth
+@auth = Basic admin-eu:test 
+
+# ====================================================================
+# SCENARIUSZ 1: Szybki test (Bezpośredni strzał)
+# Tworzy aktywny wniosek z pozycjami w jednym żądaniu.
+# Omija szkice i OD RAZU odpala handler before('SAVE').
+# ====================================================================
+POST {{server}}/service/request/Requests
+Content-Type: application/json
+Authorization: {{auth}}
+
+{
+  "title": "Test weryfikacji dostawcy",
+  "items": [
+    {
+      "supplierId": "10000",
+      "quantity": 2,
+      "price": 100
+    }
+  ]
+}
+
+###
+
+# ====================================================================
+# SCENARIUSZ 2: Symulacja dokładnie tego, co robi UI Fiori (Draft Flow)
+# ====================================================================
+
+### KROK 2A: Utworzenie pustego szkicu (Draft)
+# Zwróci Ci w odpowiedzi nowe ID. Skopiuj je do zmiennej poniżej!
+POST {{server}}/service/request/Requests
+Content-Type: application/json
+Authorization: {{auth}}
+
+{
+  "title": "Szkic z Fiori"
+}
+
+### WKLEJ ID ZE SZKICU WYŻEJ TUTAJ:
+@draftId = 12345678-abcd-1234-abcd-123456789012
+
+### KROK 2B: Dodanie pozycji do tego szkicu (Fiori: przycisk Create w tabeli Items)
+POST {{server}}/service/request/Requests(ID={{draftId}},IsActiveEntity=false)/items
+Content-Type: application/json
+Authorization: {{auth}}
+
+{
+  "supplierId": "10000001",
+  "quantity": 5,
+  "price": 50
+}
+
+### KROK 2C: Zapisanie wniosku (Fiori: kliknięcie przycisku "Save" na dole ekranu)
+# To żądanie zamienia szkic w aktywny dokument i odpala 'before(SAVE)'
+POST {{server}}/service/request/Requests(ID={{draftId}},IsActiveEntity=false)/RequestService.draftActivate
+Authorization: {{auth}}
+
+###
+
+# ====================================================================
+# SCENARIUSZ 3: ODCZYT DANYCH
+# ====================================================================
+
+### Zobacz wszystkie aktywne wnioski (z ich pozycjami)
+GET {{server}}/service/request/Requests?$expand=items
+Authorization: {{auth}}
+
+### Zobacz wszystkie aktualne SZKICE (Drafty)
+GET {{server}}/service/request/Requests?$filter=IsActiveEntity eq false
+Authorization: {{auth}}

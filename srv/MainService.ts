@@ -1,5 +1,6 @@
 import cds from '@sap/cds';
-import { Requests } from '#cds-models/RequestService';
+import { Item, Items, Requests } from '#cds-models/RequestService';
+import { executeHttpRequest } from '@sap-cloud-sdk/http-client';
 // Export the main service class
 export default class RequestService extends cds.ApplicationService {
 
@@ -22,7 +23,7 @@ export default class RequestService extends cds.ApplicationService {
         const costCenterApi = await cds.connect.to('API_COSTCENTER_V2');
         
         // Connect to the external OData V4 service (Business Partners)
-        const businessPartnerApi = await cds.connect.to('PACBusinessPartner');
+        const businessPartnerApi = await cds.connect.to('API_BUSINESS_PARTNER');
 
         // Connect to the external OData V2 service (Products)
         const productApi = await cds.connect.to('API_PRODUCT_SRV');
@@ -48,35 +49,6 @@ export default class RequestService extends cds.ApplicationService {
             }
         });
 
-        // ---------------------------------------------------------
-        // MASHUP 2: Delegate READ requests for Suppliers (V4)
-        // ---------------------------------------------------------
-        // Using string 'Suppliers' guarantees the entity is found in runtime
-        this.before('READ', 'Suppliers', (req) => {
-            const query = req.query.SELECT;
-            // Sprawdzamy, czy zapytanie ma narzucone konkretne kolumny (np. przez Fiori $select)
-            if (query && query.columns) {
-                // Wymuszamy pobranie prawdziwych pól z S/4HANA, aby nasz 'after' handler miał na czym pracować
-                query.columns.push({ ref: ['businessPartnerName1'] });
-                query.columns.push({ ref: ['businessPartnerName2'] });
-            }
-        });
-
-        this.on('READ', 'Suppliers', async (req) => {
-            // Forward the incoming query to the external V4 system
-            try {
-                // Forward the request to the external API
-                return await businessPartnerApi.run(req.query);
-            } catch (error) {
-                // Log the error and return mock data to keep value help usable
-                console.error('[Mock/API Error] Suppliers:', (error as Error).message);
-                return [
-                    { ID: '100000', businessPartnerName1: 'Demo', businessPartnerName2: 'Supplier 1', Code: 'V100000' },
-                    { ID: '200000', businessPartnerName1: 'Demo', businessPartnerName2: 'Supplier 2', Code: 'V200000' },
-                ];
-            }
-        });
-
 
         // ---------------------------------------------------------
         // MASHUP 3: Delegate READ requests for Products (V2)
@@ -92,23 +64,6 @@ export default class RequestService extends cds.ApplicationService {
                     { ID: 'HT-1002', Type: 'HAWA', Description: 'Notebook Professional 15' }
                 ];
             }
-        });
-
-        this.after('READ', 'Suppliers', (each) => {
-            // Bezpieczne łączenie stringów (jeśli jedno z pól jest nullem)
-            const name1 = each.businessPartnerName1 || '';
-            const name2 = each.businessPartnerName2 || '';
-            
-            // Tworzymy finalne pole Name
-            each.Name = `${name1} ${name2}`.trim();
-            
-            // (Opcjonalnie) Jeśli dostawca nie ma nazwy, wstawmy zaślepkę
-            if (!each.Name) {
-                each.Name = 'Brak danych';
-            }
-            
-            delete each.businessPartnerName1;
-            delete each.businessPartnerName2;
         });
 
         // Keep statusCriticality in sync when user sets status
@@ -145,7 +100,7 @@ export default class RequestService extends cds.ApplicationService {
         // ---------------------------------------------------------
         // CUSTOM ACTIONS: Approve & Reject
         // ---------------------------------------------------------
-        this.on('approve', 'Requests', async (req) => {
+        this.on('approveRequest', 'Requests', async (req) => {
             // req.params[0] holds the UUID of the active entity
             const keys = req.params[0];
             
@@ -164,7 +119,7 @@ export default class RequestService extends cds.ApplicationService {
             return updated;
         });
         
-        this.on('reject', 'Requests', async (req) => {
+        this.on('rejectRequest', 'Requests', async (req) => {
             const keys = req.params[0];
             const currentUserId = req.user.id;
 
@@ -207,19 +162,19 @@ export default class RequestService extends cds.ApplicationService {
         // ---------------------------------------------------------
         // POST-READ: Calculate UI virtual fields
         // ---------------------------------------------------------
-        this.after('READ', 'Requests', (each) => {
-            // Guard clause to prevent errors on metadata requests
-            if (!each) return;
+        // this.after('READ', 'Requests', (each) => {
+        //     // Guard clause to prevent errors on metadata requests
+        //     if (!each) return;
 
-            // Now 'each.status_code' is guaranteed to be populated
-            if (each.status_code === 'A' || each.status_code === 'R') {
-                each.isActionable = false;
-                each.isReadOnly = true;
-            } else {
-                each.isActionable = true;
-                each.isReadOnly = false;
-            }
-        });
+        //     // Now 'each.status_code' is guaranteed to be populated
+        //     if (each.status_code === 'A' || each.status_code === 'R') {
+        //         each.isActionable = false;
+        //         each.isReadOnly = true;
+        //     } else {
+        //         each.isActionable = true;
+        //         each.isReadOnly = false;
+        //     }
+        // });
 
         // ---------------------------------------------------------
         // MASHUP 1: Cost Centers (Virtual Fields & $expand)
@@ -259,6 +214,116 @@ export default class RequestService extends cds.ApplicationService {
                 each.Description = textRecord.CostCenterDescription;
             }
         });
+
+        // this.before('SAVE', 'Requests', async (req) => {
+        //     const data: any = req.data;
+
+        //     if(data.status_code || data.status_code === 'D') {
+        //         data.status_code = 'S';
+        //         data.statusCriticality = this._criticalityFromStatusCode(data.status_code);
+        //     }
+            
+        // });
+
+        this.after(['CREATE', 'UPDATE', 'DELETE'], 'Items.drafts', async (_, req) => {
+            const itemKey: any = req.params?.[0] || {};
+            const requestId: string | undefined =
+                req.data?.request_ID ??
+                req.data?.request?.ID ??
+                itemKey.request_ID;
+
+            if (!requestId) return;
+
+            const draftItems = await SELECT.from('RequestService.Items.drafts').where({ request_ID: requestId });
+            const totalAmount = (draftItems as any[]).reduce((sum, item) => {
+
+                const quantity = Number(item.quantity) || 0;
+                const price = Number(item.price) || 0;
+                return sum + quantity * price;
+            }, 0);
+
+            await UPDATE('RequestService.Requests.drafts')
+                .set({ totalAmount: Number(totalAmount.toFixed(2)) })
+                .where({ ID: requestId });
+        });
+
+        this.before('SAVE', 'Requests', async (req) => {
+            const itemKey: any = req.params?.[0] || {};
+            const requestId: string | undefined =
+                req.data?.ID ??
+                itemKey.request_ID;
+
+            if (!requestId) return;
+
+            const firstItem = await SELECT.one
+                .from('RequestService.Items.drafts')
+                .where({ request_ID: requestId }) as Item;
+
+            console.log(firstItem)
+            if (!firstItem?.supplierId) {
+                return "Brak przypisanego dostawcy do sprawdzenia.";
+            }
+
+            try {
+                console.log(`[SDK] Rozpoczynam weryfikację dostawcy: ${firstItem.supplierId}...`);
+
+                // 3. MAGIC: Używamy Cloud SDK do bezpośredniego strzału na Destynację
+                const response = await executeHttpRequest(
+                    { destinationName: 'S4HANA_DESTINATION' },
+                    {
+                        method: 'GET',
+                        // OData V2 endpoint dla Business Partner (Supplier) na Sandboxie
+                        url: `/sap/opu/odata/sap/API_BUSINESS_PARTNER/A_Supplier('${firstItem.supplierId}')`,
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    }
+                );
+
+                const supplierData = response.data.d;
+
+                // 4. Logika biznesowa na podstawie odpowiedzi z S/4HANA
+                if (supplierData.DeletionIndicator === true) {
+                    req.error({
+                        code: 'SUPPLIER_BLOCKED',
+                        message: `Dostawca ${supplierData.SupplierName} jest zablokowany w S/4HANA i nie może zostać użyty!`,
+                        target: 'supplierId', // To podświetli pole z dostawcą na czerwono!
+                        status: 400
+                    });
+                } else {
+                    return `Dostawca ${supplierData.SupplierName || firstItem.supplierId} jest bezpieczny do procesowania.`;
+                }
+
+            } catch (error: any) {
+                console.error("[SDK ERROR] Failed to connect to S/4HANA:", error.message);
+                // Block the save if the supplier does not exist at all (404)
+                if (error.response?.status === 404) {
+                    req.error(400, `Supplier ${firstItem.supplierId} does not exist in S/4HANA.`);
+                } else {
+                    req.error(500, 'Cloud SDK communication error.');
+                }
+            }
+        });
+
+        this.on('submitRequest', 'Requests', async (req) => {
+            const keys = req.params[0];
+            const currentUserId = req.user.id;
+
+            await UPDATE(Requests)
+                .set({ 
+                    status_code: 'S',
+                    approvalDate: new Date().toISOString(),
+                    approver: currentUserId
+                })
+                .where(keys);
+
+            const updated = await SELECT.one.from(Requests).where(keys); 
+
+            return updated;
+            
+        });
+
+
 
         // Call the super.init() to ensure standard CAP handlers (like Drafts) are loaded
         return super.init();

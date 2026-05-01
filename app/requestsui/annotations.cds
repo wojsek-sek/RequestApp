@@ -142,9 +142,13 @@ annotate service.Requests with @(
     ],
 
     UI.Identification: [
-            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.approve', Label: 'Approve', Criticality: 3 },
-            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.reject', Label: 'Reject', Criticality: 1 }
+            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.submitRequest', Label: 'Submit', Criticality: 3, @UI.Hidden: {$edmJson: {$Ne: [{$Path: 'status_code'}, 'D']}}},
+            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.approveRequest', Label: 'Approve', Criticality: 3, @UI.Hidden: {$edmJson: {$Ne: [{$Path: 'status_code'}, 'S']}}},
+            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.rejectRequest', Label: 'Reject', Criticality: 1, @UI.Hidden: {$edmJson: {$Ne: [{$Path: 'status_code'}, 'S']}} }
     ],
+
+    UI.UpdateHidden : {$edmJson: {$Ne: [{$Path: 'status_code'}, 'D']}},
+    UI.DeleteHidden : {$edmJson: {$Ne: [{$Path: 'status_code'}, 'D']}},
     
 );
 
@@ -154,12 +158,14 @@ annotate service.Requests with {
     createdBy  @UI.Hidden;
     modifiedAt @UI.Hidden;
     modifiedBy @UI.Hidden;
+    region @UI.Hidden;
     ID @UI.Hidden;
 
     status @readonly;
     status_code @readonly;
     approver    @readonly;
     approvalDate @readonly;
+    totalAmount @readonly;
 
     justification @UI.MultiLineText: true;
 
@@ -178,7 +184,8 @@ annotate service.Requests with {
                 {
                     $Type : 'Common.ValueListParameterDisplayOnly',
                     ValueListProperty : 'CompanyCode',
-                    Label: '{i18n>CompanyCode}'
+                    Label: '{i18n>CompanyCode}',
+                    HTML5.CssDefaults: {width: '10em'}
 
                 },
                 {
@@ -214,7 +221,6 @@ annotate service.Requests with {
             ],
         }
     );
-
 };
 
 annotate service.Items with @(
@@ -294,9 +300,10 @@ annotate service.Items with {
                 },
                 {
                     $Type : 'Common.ValueListParameterDisplayOnly',
-                    ValueListProperty : 'Name',
+                    ValueListProperty : 'SupplierName',
+
                 },
-                { $Type: 'Common.ValueListParameterDisplayOnly', ValueListProperty: 'Code' }
+                //{ $Type: 'Common.ValueListParameterDisplayOnly', ValueListProperty: 'CompanyCode' }
             ],
         }
     );
@@ -329,4 +336,23 @@ annotate service.Requests with {
 annotate service.Requests with {
     title @Common.Label : '{i18n>Title}'
 };
+
+annotate RequestService.Requests with @(
+    // Używamy unikalnego identyfikatora (Qualifier) ze znakiem # - to wymóg w nowych wersjach V4
+    Common.SideEffects #RecalculateTotal: {
+        // 1. Nasłuchujemy na zdarzenia dodania lub usunięcia wiersza w tabeli 'items'
+        SourceEntities: [
+            items
+        ],
+        // 2. Nasłuchujemy na zmianę konkretnych wartości w istniejących wierszach
+        SourceProperties: [
+            'items/quantity',
+            'items/price'
+        ],
+        // 3. Cel - co ma się odświeżyć na ekranie po wykryciu zmiany
+        TargetProperties: [
+            'totalAmount'
+        ]
+    }
+);
 

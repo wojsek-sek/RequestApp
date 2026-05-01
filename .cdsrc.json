@@ -28,22 +28,46 @@
       "API_COSTCENTER_V2": {
         "kind": "odata-v2",
         "model": "srv/external/API_COSTCENTER_V2",
-        "credentials": {
-          "url": "https://sandbox.api.sap.com/s4hanacloud/sap/opu/odata/sap/API_COSTCENTER_SRV"
+        "[development]" : {
+          "credentials": {
+            "url": "https://sandbox.api.sap.com/s4hanacloud/sap/opu/odata/sap/API_COSTCENTER_SRV"
+          }
+        },
+        "[production]": {
+          "credentials": {
+            "destination": "S4HANA_DESTINATION",
+            "path": "/sap/opu/odata/sap/API_COSTCENTER_V2"
+          }
         }
       },
-      "PACBusinessPartner": {
-        "kind": "odata-v4",
-        "model": "srv/external/API_BUSINESS_PARTNER_V4",
-        "credentials": {
-          "url": "https://sandbox.api.sap.com/PackagingAgreementsCollaboration/odata/v4/MasterDataService"
+      "API_BUSINESS_PARTNER": {
+        "kind": "odata-v2",
+        "model": "srv/external/API_BUSINESS_PARTNER",
+        "[development]": {
+          "credentials": {
+            "url": "https://sandbox.api.sap.com/s4hanacloud/sap/opu/odata/sap/API_BUSINESS_PARTNER"
+          }
+        },
+        "[production]": {
+          "credentials": {
+            "destination": "S4HANA_DESTINATION",
+            "path": "/sap/opu/odata/sap/API_BUSINESS_PARTNER"
+          }
         }
       },
       "API_PRODUCT_SRV": {
         "kind": "odata-v2",
         "model": "srv/external/API_PRODUCT_SRV",
-        "credentials": {
-          "url": "https://sandbox.api.sap.com/s4hanacloud/sap/opu/odata/sap/API_PRODUCT_SRV"
+        "[development]" : {
+          "credentials": {
+            "url": "https://sandbox.api.sap.com/s4hanacloud/sap/opu/odata/sap/API_PRODUCT_SRV"
+          }
+        },
+        "[production]": {
+          "credentials": {
+            "destination": "S4HANA_DESTINATION",
+            "path": "/sap/opu/odata/sap/API_PRODUCT_SRV"
+          }
         }
       },
       "destinations": true,

@@ -3,8 +3,8 @@ using { sap.common.Currencies as CommonCurrencies } from '@sap/cds/common.cds';
 
 // Import V2 API (Cost Centers)
 using { API_COSTCENTER_V2 as extV2 } from './external/API_COSTCENTER_V2';
-// Import V4 API (Business Partners)
-using { PACBusinessPartner as extV4 } from './external/API_BUSINESS_PARTNER_V4';
+// Import V2 API (Business Partners)
+using { API_BUSINESS_PARTNER as externalBP } from './external/API_BUSINESS_PARTNER';
 // Import Product API
 using { API_PRODUCT_SRV as extProduct } from './external/API_PRODUCT_SRV';
 
@@ -26,37 +26,43 @@ service RequestService {
     ]
     // Expose the main Requests entity with Fiori Draft handling enabled
     // This allows users to save requests as drafts before submitting
-    @UI.UpdateHidden: isReadOnly
-    @UI.DeleteHidden: isReadOnly
+    //@UI.UpdateHidden: isReadOnly
+    //@UI.DeleteHidden: isReadOnly
     @odata.draft.enabled
     entity Requests as projection on my.Requests {
         *,
-        virtual isActionable : Boolean,
-        virtual isReadOnly : Boolean
+        // virtual isActionable : Boolean @UI.Hidden,
+        // virtual isReadOnly : Boolean @UI.Hidden
     } actions {
         @Common.IsActionCritical: true
-        @Core.OperationAvailable: in.isActionable
         @Common.SideEffects: {
             TargetProperties: [
                 'status_code',
                 'approvalDate',
-                'approver',
-                'isActionable',
-                'isReadOnly'
+                'approver'
             ]
         }
-        action approve() returns Requests;
-        @Core.OperationAvailable: in.isActionable
+        action approveRequest() returns Requests;
+        //@Core.OperationAvailable: in.isActionable
         @Common.SideEffects: {
             TargetProperties: [
                 'status_code',
                 'approvalDate',
-                'approver',
-                'isActionable',
-                'isReadOnly'
+                'approver'
             ]
         }
-        action reject() returns Requests;  
+        action rejectRequest() returns Requests;
+
+        @Common.SideEffects: {
+            TargetProperties: [
+                'status_code',
+                'approvalDate',
+                'approver'
+            ]
+        }
+        action submitRequest() returns Requests; 
+
+        //action verifySupplierRisk() returns String; 
     };
 
     // Expose the Items entity
@@ -94,12 +100,11 @@ service RequestService {
 
     // --- MASHUP 2: OData V4 (Business Partners) ---
     @readonly
-    entity Suppliers as projection on extV4.BusinessPartners {
-        key businessPartnerNumber as ID, // Alias for standardisation
-        businessPartnerName1 @UI.Hidden,
-        businessPartnerName2 @UI.Hidden,
-        virtual Name : String,
-        vendorCode as Code
+    entity Suppliers as projection on externalBP.A_Supplier {
+        key Supplier as ID,
+        @title : '{i18n>SupplierName}'
+        SupplierName
+        //to_SupplierCompany.CompanyCode as CompanyCode
     };
 
     @readonly
