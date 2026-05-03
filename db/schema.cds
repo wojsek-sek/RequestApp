@@ -16,7 +16,7 @@ aspect ApprovalTracking {
 // ---------------------------------------------------------
 // By adding 'ApprovalTracking', the Requests entity inherits its fields
 entity Requests : cuid, managed, ApprovalTracking {
-    title        : String(100)  @title: 'Request Title';
+    title        : String(100)  @title: 'Request Title' @mandatory;
     totalAmount  : Decimal(15, 2) @title: 'Total Amount';
     currency     : String(3) default 'USD' @title: 'Currency';
     costCenter   : String(10)   @title: 'Cost Center (S/4HANA)';
@@ -38,10 +38,10 @@ entity Items : cuid {
     // Field for integrating S/4HANA Product Master Data
     productId    : String(40)   @title: 'Product ID (S/4HANA)';
     description  : String(200)  @title: 'Item Description';
-    quantity     : Integer      @title: 'Quantity';
-    price        : Decimal(15, 2) @title: 'Unit Price (Net)';
+    quantity     : Integer      @title: 'Quantity' @mandatory;
+    price        : Decimal(15, 2) @title: 'Unit Price (Net)' @mandatory;
     category     : Association to Categories @title: 'Category';
-    supplierId   : String(10) @title: 'Suggested Supplier (BP)';
+    supplierId   : String(10) @title: 'Suggested Supplier (BP)' @mandatory;
     
     // Simple math expression for calculated field
     itemTotal    : Decimal(15, 2) = (quantity * price) @title: 'Item Total';

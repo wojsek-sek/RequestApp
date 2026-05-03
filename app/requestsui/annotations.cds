@@ -228,6 +228,11 @@ annotate service.Items with @(
     UI.LineItem : [
         {
             $Type : 'UI.DataField',
+            Value : productId,
+            Label : '{i18n>Product}'
+        },
+        {
+            $Type : 'UI.DataField',
             Value : description,
             Label : '{i18n>ItemDescription}',
         },
@@ -259,11 +264,78 @@ annotate service.Items with @(
             Label : '{i18n>ItemTotal}',
         },
     ],
+
+    // 1. Group the fields that should appear on the detail page
+    UI.FieldGroup #ItemDetails : {
+        $Type : 'UI.FieldGroupType',
+        Data : [
+            {
+                $Type : 'UI.DataField',
+                Value : productId,
+                Label : '{i18n>Product}'
+            },
+            {
+                $Type : 'UI.DataField',
+                Value : description,
+                Label : '{i18n>ItemDescription}'
+            },
+            {
+                $Type : 'UI.DataField',
+                Value : quantity,
+                Label : '{i18n>Quantity}'
+            },
+            {
+                $Type : 'UI.DataField',
+                Value : price,
+                Label : '{i18n>UnitPrice}'
+            },
+            {
+                $Type : 'UI.DataField',
+                Value : category_code,
+                Label : '{i18n>Category}'
+            },
+            {
+                $Type : 'UI.DataField',
+                Value : supplierId,
+                Label : '{i18n>Supplier}'
+            },
+            {
+                $Type : 'UI.DataField',
+                Value : itemTotal,
+                Label : '{i18n>ItemTotal}'
+            }
+        ]
+    },
+
+    // 2. Tell Fiori to generate the page using the FieldGroup above
+    UI.Facets : [
+        {
+            $Type : 'UI.ReferenceFacet',
+            ID : 'ItemDetailsFacet',
+            Label : 'Item Details', // You can change this to an i18n tag later
+            Target : '@UI.FieldGroup#ItemDetails'
+        }
+    ],
+
+    // Definiujemy jak wygląda górny pasek (nagłówek) dla strony pojedynczej pozycji
+    UI.HeaderInfo : {
+        TypeName       : '{i18n>Item}',
+        TypeNamePlural : '{i18n>Items}',
+        Title          : {
+            $Type : 'UI.DataField',
+            Value : description // Na samej górze strony dużymi literami wyświetli się opis pozycji
+        },
+        Description    : {
+            $Type : 'UI.DataField',
+            Value : productId 
+        }
+    },
 );
 
 annotate service.Items with {
     ID @UI.Hidden;
     request @UI.Hidden;
+    status_code @UI.Hidden;
 
     category_code @(
         Common.ValueListWithFixedValues: true,
@@ -315,7 +387,7 @@ annotate service.Items with {
             CollectionPath: 'Products',
             Parameters: [
                 { $Type: 'Common.ValueListParameterInOut', LocalDataProperty: productId, ValueListProperty: 'ID' },
-                { $Type: 'Common.ValueListParameterDisplayOnly', ValueListProperty: 'Description' },
+                { $Type: 'Common.ValueListParameterOut', LocalDataProperty: description, ValueListProperty: 'Description' },
                 { $Type: 'Common.ValueListParameterDisplayOnly', ValueListProperty: 'Type' }
             ]
         }

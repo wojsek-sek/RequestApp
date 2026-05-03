@@ -105,6 +105,11 @@
           "pattern": "Requests({key}):?query:",
           "name": "RequestsObjectPage",
           "target": "RequestsObjectPage"
+        },
+        {
+          "name": "Requests_itemsObjectPage",
+          "pattern": "Requests({key})/items({itemsKey}):?query:",
+          "target": "Requests_itemsObjectPage"
         }
       ],
       "targets": {
@@ -164,7 +169,25 @@
                 "header": {
                   "visible": true
                 }
+              },
+              "navigation": {
+                "items": {
+                  "detail": {
+                    "route": "Requests_itemsObjectPage"
+                  }
+                }
               }
+            }
+          }
+        },
+        "Requests_itemsObjectPage": {
+          "type": "Component",
+          "id": "Requests_itemsObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "navigation": {},
+              "contextPath": "/Requests/items"
             }
           }
         }

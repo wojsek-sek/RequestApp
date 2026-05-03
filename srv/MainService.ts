@@ -23,7 +23,7 @@ export default class RequestService extends cds.ApplicationService {
         const costCenterApi = await cds.connect.to('API_COSTCENTER_V2');
         
         // Connect to the external OData V4 service (Business Partners)
-        const businessPartnerApi = await cds.connect.to('API_BUSINESS_PARTNER');
+        const bupa = await cds.connect.to('API_BUSINESS_PARTNER');
 
         // Connect to the external OData V2 service (Products)
         const productApi = await cds.connect.to('API_PRODUCT_SRV');
@@ -45,23 +45,6 @@ export default class RequestService extends cds.ApplicationService {
                     { CostCenter: '1000000001', CompanyCode: '1000' },
                     { CostCenter: '1000000002', CompanyCode: '1000' },
                     { CostCenter: '2000000001', CompanyCode: '2000' },
-                ];
-            }
-        });
-
-
-        // ---------------------------------------------------------
-        // MASHUP 3: Delegate READ requests for Products (V2)
-        // ---------------------------------------------------------
-        this.on('READ', 'Products', async (req) => {
-            try {
-                return await productApi.run(req.query);
-            } catch (error) {
-                console.error('[Mock/API Error] Products:', (error as Error).message);
-                return [
-                    { ID: 'HT-1000', Type: 'HAWA', Description: 'Notebook Basic 15' },
-                    { ID: 'HT-1001', Type: 'HAWA', Description: 'Notebook Basic 17' },
-                    { ID: 'HT-1002', Type: 'HAWA', Description: 'Notebook Professional 15' }
                 ];
             }
         });
@@ -323,7 +306,80 @@ export default class RequestService extends cds.ApplicationService {
             
         });
 
+        // Delegate all READ operations on 'Suppliers' to the external API
+        this.on('READ', 'Suppliers', async (req) => {
+            try {
+                return await bupa.tx(req).run(req.query);
+            } catch (err) {
+                // Catch API errors to prevent the server from crashing completely
+                console.error('Error fetching Suppliers from S/4HANA:', err);
+                req.reject(502, 'Cannot fetch suppliers from external system.');
+            }
+        });
 
+        this.on('READ', 'Products', async (req) => {
+            const incomingSel = req.query?.SELECT;
+            const userLang =
+                typeof req.locale === 'string'
+                    ? req.locale.split('-')[0]!.toUpperCase()
+                    : 'EN';
+
+            // Virtual `Description` on RequestService.Products must not be forwarded as $select on A_Product.
+            // Expand `to_Description` explicitly (same idea as CostCenters + to_Text): `('*')` on the nav
+            // fluent helper is unreliable for OData V2 remote → use ref + expand.
+            const query: any = (SELECT as any).from('API_PRODUCT_SRV.A_Product').columns(
+                'Product',
+                'ProductType',
+                'NetWeight',
+                { ref: ['to_Description'], expand: ['*'] }
+            );
+
+            if (incomingSel?.limit !== undefined) {
+                query.SELECT.limit = incomingSel.limit;
+            }
+            if (incomingSel?.where) {
+                const whereStr = JSON.stringify(incomingSel.where);
+                if (!whereStr.includes('Description')) {
+                    query.SELECT.where = incomingSel.where;
+                }
+            }
+
+            const descRowsFromExpand = (toDesc: any): any[] => {
+                if (!toDesc) return [];
+                if (Array.isArray(toDesc)) return toDesc;
+                if (Array.isArray(toDesc.results)) return toDesc.results;
+                if (typeof toDesc === 'object' && 'Language' in toDesc && 'ProductDescription' in toDesc) {
+                    return [toDesc];
+                }
+                return [];
+            };
+
+            const pickProductDescription = (rows: any[]): string => {
+                if (!rows.length) return '';
+                const byLang = rows.find((d) => d.Language === userLang);
+                const byEn = rows.find((d) => d.Language === 'EN');
+                return (
+                    byLang?.ProductDescription ??
+                    byEn?.ProductDescription ??
+                    rows[0].ProductDescription ??
+                    ''
+                );
+            };
+
+            try {
+                const results: any[] = await productApi.tx(req).run(query);
+
+                return results.map((item) => ({
+                    ID: item.Product,
+                    Type: item.ProductType,
+                    NetWeight: item.NetWeight,
+                    Description: pickProductDescription(descRowsFromExpand(item.to_Description)),
+                }));
+            } catch (err) {
+                console.error('Error fetching Products from S/4HANA:', err);
+                return req.reject(502, 'PRODUCT_FETCH_ERROR');
+            }
+        });
 
         // Call the super.init() to ensure standard CAP handlers (like Drafts) are loaded
         return super.init();

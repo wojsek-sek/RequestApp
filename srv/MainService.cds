@@ -68,7 +68,10 @@ service RequestService {
     // Expose the Items entity
     // Note: No need for @odata.draft.enabled here, as Items are linked 
     // to Requests via 'Composition' and are handled automatically
-    entity Items as projection on my.Items;
+    entity Items as projection on my.Items {
+        *,
+        request.status.code as status_code
+    };
 
     // CodeLists (Dictionaries) - these should be strictly read-only for the UI
     // We don't want business users modifying statuses or categories via API
@@ -112,6 +115,6 @@ service RequestService {
         key Product as ID,
         ProductType as Type,
         NetWeight,
-        to_Description
+        virtual null as Description : String(255)
     };
 }   
