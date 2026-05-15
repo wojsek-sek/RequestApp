@@ -121,6 +121,23 @@
             "settings": {
               "contextPath": "/Requests",
               "variantManagement": "Page",
+              "views": {
+                "paths": [
+                  {
+                    "primary": [
+                      {
+                        "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#FinancialView"
+                      }
+                    ],
+                    "secondary": [
+                      {
+                        "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#FinancialView"
+                      }
+                    ],
+                    "defaultPath": "both"
+                  }
+                ]
+              },
               "navigation": {
                 "Requests": {
                   "detail": {
@@ -138,6 +155,11 @@
                     "creationMode": {
                       "name": "NewPage"
                     }
+                  }
+                },
+                "@com.sap.vocabularies.UI.v1.Chart#RequestsByStatus": {
+                  "chartSettings": {
+                    "defaultShowDataLabel": true
                   }
                 }
               },

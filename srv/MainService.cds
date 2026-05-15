@@ -14,10 +14,10 @@ using { API_PRODUCT_SRV as extProduct } from './external/API_PRODUCT_SRV';
 service RequestService {
 
     @restrict: [
-        // 1. Viewer może CZYTAĆ wszystko (brak warunku 'where')
+        // Viewer: read-only access (no region filter)
         { grant: 'READ', to: 'Viewer' },
         
-        // 2. RegionalManager może robić WSZYSTKO (CRUD), ale TYLKO w swoim regionie
+        // RegionalManager: full CRUD within the user's region only
         { 
             grant: '*', 
             to: 'RegionalManager', 
@@ -30,9 +30,7 @@ service RequestService {
     //@UI.DeleteHidden: isReadOnly
     @odata.draft.enabled
     entity Requests as projection on my.Requests {
-        *,
-        // virtual isActionable : Boolean @UI.Hidden,
-        // virtual isReadOnly : Boolean @UI.Hidden
+        *
     } actions {
         @Common.IsActionCritical: true
         @Common.SideEffects: {
@@ -61,6 +59,10 @@ service RequestService {
             ]
         }
         action submitRequest() returns Requests; 
+        // Bound action: generate business justification for the current request draft
+        @cds.odata.bindingparameter.name : '_it'
+        @Core.OperationAvailable : { $edmJson: { $Eq: [{ $Path: '_it/IsActiveEntity' }, false] } } // Available only while editing (draft)
+        action generateAIJustification();
 
         //action verifySupplierRisk() returns String; 
     };
@@ -117,4 +119,43 @@ service RequestService {
         NetWeight,
         virtual null as Description : String(255)
     };
-}   
+}
+
+// OData V4 aggregation for analytical charts on the list report
+annotate RequestService.Requests with @(
+    Aggregation.ApplySupported: {
+        Transformations: [
+            'aggregate',
+            'topcount',
+            'bottomcount',
+            'identity',
+            'concat',
+            'groupby',
+            'filter',
+            'search',
+        ],
+        GroupableProperties: [status_code, costCenter, currency],
+        AggregatableProperties: [
+            {
+                Property: totalAmount,
+                SupportedAggregationMethods: ['sum', 'min', 'max'],
+            },
+            {
+                Property: ID,
+                SupportedAggregationMethods: ['countdistinct'],
+            },
+        ],
+    },
+    Analytics.AggregatedProperty #TotalAmountSum: {
+        Name: 'TotalAmountSum',
+        AggregationMethod: 'sum',
+        AggregatableProperty: totalAmount,
+        @Common.Label: '{i18n>TotalAmountSum}',
+    },
+    Analytics.AggregatedProperty #RequestCount: {
+        Name: 'RequestCount',
+        AggregationMethod: 'countdistinct',
+        AggregatableProperty: ID,
+        @Common.Label: '{i18n>RequestCount}',
+    },
+);

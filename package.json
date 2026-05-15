@@ -4,6 +4,8 @@
   "private": true,
   "dependencies": {
     "@cap-js/hana": "^2",
+    "@google/genai": "^2.3.0",
+    "@google/generative-ai": "^0.24.1",
     "@sap-cloud-sdk/connectivity": "^4.6.0",
     "@sap-cloud-sdk/http-client": "^4.6.0",
     "@sap-cloud-sdk/resilience": "^4.5.1",

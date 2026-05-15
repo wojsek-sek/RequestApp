@@ -42,9 +42,7 @@ entity Items : cuid {
     price        : Decimal(15, 2) @title: 'Unit Price (Net)' @mandatory;
     category     : Association to Categories @title: 'Category';
     supplierId   : String(10) @title: 'Suggested Supplier (BP)' @mandatory;
-    
-    // Simple math expression for calculated field
-    itemTotal    : Decimal(15, 2) = (quantity * price) @title: 'Item Total';
+    itemTotal : Decimal(15, 2) @title: 'Item Total';
 }
 
 // ---------------------------------------------------------

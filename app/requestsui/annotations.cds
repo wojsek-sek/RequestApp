@@ -34,19 +34,32 @@ annotate service.Requests with @(
                 Value : status_code,
                 Criticality : status.criticality,
                 CriticalityRepresentation : #WithoutIcon
-            },
+            }
+        ],
+    },
+    UI.FieldGroup #JustificationGroup : {
+        $Type : 'UI.FieldGroupType',
+        Data : [
             {
                 $Type : 'UI.DataField',
+                @UI.MultiLineText: true,
+                @HTML5.CssDefaults: {width: '100%'},
                 Value : justification,
-            },
+            }
         ],
     },
     UI.Facets : [
         {
             $Type : 'UI.ReferenceFacet',
             ID : 'GeneratedFacet1',
-            Label : 'General Information',
+            Label : '{i18n>GeneralInfo}',
             Target : '@UI.FieldGroup#GeneratedGroup',
+        },
+         {
+            $Type : 'UI.ReferenceFacet',
+            ID : 'JustificationGroup1',
+            Label : '{i18n>Justification}',
+            Target : '@UI.FieldGroup#JustificationGroup',
         },
         {
             $Type : 'UI.CollectionFacet',
@@ -106,14 +119,14 @@ annotate service.Requests with @(
         TypeNamePlural : '{i18n>Requests}',
         Title          : {
             $Type : 'UI.DataField',
-            Value : title, // Tu wyświetlamy nazwę wniosku zamiast ID
+            Value : title,
         },
         Description    : {
             $Type : 'UI.DataField',
-            Value : justification, // Podtytuł (mniejszy tekst pod tytułem)
+            Value : justification,
         }
     },
-    // 1. Definicja punktu danych dla Statusu
+    // Status data point for header facet
     UI.DataPoint #StatusDataPoint : {
         Value       : status_code,
         Title       : '{i18n>Status}',
@@ -121,13 +134,13 @@ annotate service.Requests with @(
         CriticalityRepresentation : #WithoutIcon
     },
 
-    // 2. Definicja punktu danych dla Kwoty
+    // Total amount data point for header facet
     UI.DataPoint #TotalAmountDataPoint : {
         Value : totalAmount,
         Title : '{i18n>TotalAmount}',
     },
 
-    // 3. Wrzucenie ich do nagłówka (HeaderFacets)
+    // Header facets (status + amount)
     UI.HeaderFacets : [
         {
             $Type  : 'UI.ReferenceFacet',
@@ -142,9 +155,15 @@ annotate service.Requests with @(
     ],
 
     UI.Identification: [
-            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.submitRequest', Label: 'Submit', Criticality: 3, @UI.Hidden: {$edmJson: {$Ne: [{$Path: 'status_code'}, 'D']}}},
-            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.approveRequest', Label: 'Approve', Criticality: 3, @UI.Hidden: {$edmJson: {$Ne: [{$Path: 'status_code'}, 'S']}}},
-            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.rejectRequest', Label: 'Reject', Criticality: 1, @UI.Hidden: {$edmJson: {$Ne: [{$Path: 'status_code'}, 'S']}} }
+            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.submitRequest', Label: '{i18n>Submit}', Criticality: 3, @UI.Hidden: {$edmJson: {$Ne: [{$Path: 'status_code'}, 'D']}}},
+            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.approveRequest', Label: '{i18n>Approve}', Criticality: 3, @UI.Hidden: {$edmJson: {$Ne: [{$Path: 'status_code'}, 'S']}}},
+            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.rejectRequest', Label: '{i18n>Reject}', Criticality: 1, @UI.Hidden: {$edmJson: {$Ne: [{$Path: 'status_code'}, 'S']}} },
+            { 
+                $Type: 'UI.DataFieldForAction', 
+                Action: 'RequestService.generateAIJustification', 
+                Label: '{i18n>AutoJustify}',
+                IconUrl: 'sap-icon://ai'
+            }
     ],
 
     UI.UpdateHidden : {$edmJson: {$Ne: [{$Path: 'status_code'}, 'D']}},
@@ -269,16 +288,16 @@ annotate service.Items with @(
     UI.FieldGroup #ItemDetails : {
         $Type : 'UI.FieldGroupType',
         Data : [
-            {
-                $Type : 'UI.DataField',
-                Value : productId,
-                Label : '{i18n>Product}'
-            },
-            {
-                $Type : 'UI.DataField',
-                Value : description,
-                Label : '{i18n>ItemDescription}'
-            },
+            // {
+            //     $Type : 'UI.DataField',
+            //     Value : productId,
+            //     Label : '{i18n>Product}'
+            // },
+            // {
+            //     $Type : 'UI.DataField',
+            //     Value : description,
+            //     Label : '{i18n>ItemDescription}'
+            // },
             {
                 $Type : 'UI.DataField',
                 Value : quantity,
@@ -312,30 +331,31 @@ annotate service.Items with @(
         {
             $Type : 'UI.ReferenceFacet',
             ID : 'ItemDetailsFacet',
-            Label : 'Item Details', // You can change this to an i18n tag later
+            Label : '{i18n>ItemDetails}',
             Target : '@UI.FieldGroup#ItemDetails'
         }
     ],
 
-    // Definiujemy jak wygląda górny pasek (nagłówek) dla strony pojedynczej pozycji
+    // Object page header for a single line item
     UI.HeaderInfo : {
         TypeName       : '{i18n>Item}',
         TypeNamePlural : '{i18n>Items}',
         Title          : {
             $Type : 'UI.DataField',
-            Value : description // Na samej górze strony dużymi literami wyświetli się opis pozycji
+            Value : productId,
         },
         Description    : {
             $Type : 'UI.DataField',
-            Value : productId 
+            Value : description 
         }
-    },
+    }
 );
 
 annotate service.Items with {
     ID @UI.Hidden;
     request @UI.Hidden;
     status_code @UI.Hidden;
+    itemTotal @readonly;
 
     category_code @(
         Common.ValueListWithFixedValues: true,
@@ -392,6 +412,7 @@ annotate service.Items with {
             ]
         }
     );
+ 
 };
 annotate service.Requests with {
     totalAmount @Common.Label : '{i18n>Amount}'
@@ -410,21 +431,80 @@ annotate service.Requests with {
 };
 
 annotate RequestService.Requests with @(
-    // Używamy unikalnego identyfikatora (Qualifier) ze znakiem # - to wymóg w nowych wersjach V4
     Common.SideEffects #RecalculateTotal: {
-        // 1. Nasłuchujemy na zdarzenia dodania lub usunięcia wiersza w tabeli 'items'
-        SourceEntities: [
-            items
-        ],
-        // 2. Nasłuchujemy na zmianę konkretnych wartości w istniejących wierszach
-        SourceProperties: [
-            'items/quantity',
-            'items/price'
-        ],
-        // 3. Cel - co ma się odświeżyć na ekranie po wykryciu zmiany
-        TargetProperties: [
-            'totalAmount'
-        ]
+        SourceEntities: [items],
+        SourceProperties: ['items/quantity', 'items/price'],
+        TargetProperties: ['totalAmount', 'items/itemTotal'],
     }
 );
 
+// Refresh itemTotal when quantity or price changes (item object page / Items context)
+annotate service.Items with @(Common.SideEffects #RecalculateItemTotalForItem: {
+    SourceProperties: ['quantity', 'price'],
+    TargetProperties: ['itemTotal']
+});
+
+annotate RequestService.Requests with actions {
+    
+    generateAIJustification @(
+        Common.SideEffects #RefreshAIJustification: {
+            TargetProperties: ['_it/justification'],
+        }
+    );
+    
+};
+
+annotate RequestService.Requests with @(
+    UI.Chart #RequestsByStatus: {
+        ChartType: #Donut,
+        Title: '{i18n>ChartRequestsByStatus}',
+        DynamicMeasures: ['@Analytics.AggregatedProperty#RequestCount',
+        ],
+        Dimensions: [status_code],
+        MeasureAttributes: [{
+            DynamicMeasure: '@Analytics.AggregatedProperty#RequestCount',
+            Role: #Axis1,
+        }],
+        DimensionAttributes: [{
+            Dimension: status_code,
+            Role: #Category,
+        }],
+    },
+
+    UI.Chart #AmountByCostCenter: {
+        ChartType: #Column,
+        Title: '{i18n>ChartSpendByCostCenter}',
+        DynamicMeasures: ['@Analytics.AggregatedProperty#TotalAmountSum',
+        ],
+        Dimensions: [costCenter],
+        MeasureAttributes: [{
+            DynamicMeasure: '@Analytics.AggregatedProperty#TotalAmountSum',
+            Role: #Axis1,
+        }],
+        DimensionAttributes: [{
+            Dimension: costCenter,
+            Role: #Category,
+        }],
+    },
+
+    // Table first, then chart — enables chart + table layout (toolbar: Table | Chart | Both)
+    UI.SelectionPresentationVariant #StatusView: {
+        Text: '{i18n>OperationalView}',
+        PresentationVariant: {
+            SortOrder: [{ Property: ID, Descending: true }],
+            Visualizations: [
+                '@UI.Chart#RequestsByStatus',
+            ],
+        },
+    },
+
+    UI.SelectionPresentationVariant #FinancialView: {
+        Text: '{i18n>FinancialView}',
+        PresentationVariant: {
+            SortOrder: [{ Property: ID, Descending: true }],
+            Visualizations: [
+                '@UI.Chart#AmountByCostCenter',
+            ],
+        },
+    },
+);
