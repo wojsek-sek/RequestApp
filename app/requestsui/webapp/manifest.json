@@ -146,6 +146,24 @@
                 }
               },
               "controlConfiguration": {
+                "@com.sap.vocabularies.UI.v1.SelectionFields": {
+                  "layout": "CompactVisual",
+                  "initialLayout": "Visual",
+                  "filterFields": {
+                    "status_code": {
+                      "availability": "Default",
+                      "visualFilter": {
+                        "valueList": "com.sap.vocabularies.Common.v1.ValueList#VisualFilterStatus"
+                      }
+                    },
+                    "costCenter": {
+                      "availability": "Default",
+                      "visualFilter": {
+                        "valueList": "com.sap.vocabularies.Common.v1.ValueList#VisualFilterCostCenter"
+                      }
+                    }
+                  }
+                },
                 "@com.sap.vocabularies.UI.v1.LineItem": {
                   "tableSettings": {
                     "type": "ResponsiveTable",

@@ -30,6 +30,7 @@ service RequestService {
     //@UI.DeleteHidden: isReadOnly
     @odata.draft.enabled
     entity Requests as projection on my.Requests {
+        status.name as statusText : String,
         *
     } actions {
         @Common.IsActionCritical: true
@@ -134,7 +135,7 @@ annotate RequestService.Requests with @(
             'filter',
             'search',
         ],
-        GroupableProperties: [status_code, costCenter, currency],
+        GroupableProperties: [status_code, costCenter, currency, statusText],
         AggregatableProperties: [
             {
                 Property: totalAmount,

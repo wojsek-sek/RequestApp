@@ -76,6 +76,8 @@ annotate service.Requests with @(
     ],
     
     UI.SelectionFields: [
+        status_code,
+        costCenter,
         title,
         approvalDate,
         justification,
@@ -508,3 +510,77 @@ annotate RequestService.Requests with @(
         },
     },
 );
+
+annotate RequestService.Requests with @(
+    // 1. Mini-wykres dla Statusu
+    UI.Chart #VFChartStatus: {
+        ChartType: #Bar,
+        DynamicMeasures: ['@Analytics.AggregatedProperty#RequestCount' ],
+        Dimensions: [status_code],
+        MeasureAttributes: [{
+            DynamicMeasure: '@Analytics.AggregatedProperty#RequestCount',
+            Role: #Axis1
+        }],
+        DimensionAttributes: [{
+            Dimension: status_code,
+            Role: #Category
+        }]
+    },
+    // Wariant prezentacji dla filtra statusu
+    UI.PresentationVariant #VFStatusPV: {
+        SortOrder: [{
+            Property: status_code,
+            Descending: true
+        }],
+        Visualizations: ['@UI.Chart#VFChartStatus']
+    },
+
+    // 2. Mini-wykres dla Cost Center
+    UI.Chart #VFChartCostCenter: {
+        ChartType: #Bar, // Poziomy Bar wygląda obłędnie w ciasnym pasku filtrów
+        DynamicMeasures: ['@Analytics.AggregatedProperty#TotalAmountSum'],
+        Dimensions: [costCenter],
+        MeasureAttributes: [{
+            DynamicMeasure: '@Analytics.AggregatedProperty#TotalAmountSum',
+            Role: #Axis1
+        }],
+        DimensionAttributes: [{
+            Dimension: costCenter,
+            Role: #Category
+        }]
+    },
+    // Wariant prezentacji dla filtra Cost Center
+    UI.PresentationVariant #VFCostCenterPV: {
+        SortOrder: [{
+            Property: costCenter,
+            Descending: true
+        }],
+        Visualizations: ['@UI.Chart#VFChartCostCenter']
+    }
+);
+
+annotate RequestService.Requests with {
+    status @(
+        Common.ValueList #VisualFilterStatus: {
+            CollectionPath: 'Requests',
+            PresentationVariantQualifier: 'VFStatusPV',
+            Parameters: [
+                {
+                    $Type: 'Common.ValueListParameterInOut',
+                    LocalDataProperty: status_code,
+                    ValueListProperty: 'status_code'
+                }
+            ]
+        }
+    );
+
+    costCenter @(
+        Common.ValueList #VisualFilterCostCenter: {
+            CollectionPath: 'Requests',
+            PresentationVariantQualifier: 'VFCostCenterPV',
+            Parameters: [
+                { $Type: 'Common.ValueListParameterInOut', LocalDataProperty: costCenter, ValueListProperty: 'costCenter' }
+            ]
+        }
+    );
+};
