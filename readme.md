@@ -6,54 +6,55 @@
 
 ## Overview
 
-CAPMAP digitizes the capital expenditure approval workflow for organizations that need a structured, auditable process for procurement requests. Employees create itemized purchase requests, route them for regional manager approval, and get AI-generated business justifications — all in a modern, mobile-ready Fiori UI backed by a SAP HANA database and live S/4HANA data.
+CAPMAP digitizes the capital expenditure approval workflow for organizations that need a structured, auditable process for procurement requests. Employees create itemized purchase requests, route them for regional manager approval, and get AI-generated business justifications — all in a modern, mobile-ready Fiori UI backed by SAP HANA and live S/4HANA data.
 
-### Key Capabilities
+**Key capabilities:**
 
-- **Draft-based request authoring** — save work in progress, edit freely, submit when ready
-- **Structured approval workflow** — Draft → Submitted → Approved / Rejected with full audit trail
-- **Line-item management** — add products from S/4HANA catalog, automatic total recalculation
-- **AI-powered justifications** — one click generates a professional business case via Google Gemini
-- **Regional access control** — managers only see and act on requests within their assigned region
-- **Live S/4HANA data** — cost centers, suppliers, and products fetched in real time
-- **Analytics & charts** — spending by cost center, requests by status, visual filter bar
-- **Localization** — English and Polish UI with locale-aware S/4HANA text resolution
+- Draft-based request authoring with automatic line-item total recalculation
+- Structured workflow — Draft → Submitted → Approved / Rejected with full audit trail
+- AI-generated business justifications via Google Gemini (one-click, locale-aware)
+- Regional row-level access control via XSUAA user attributes
+- Live S/4HANA mashups — cost centers, suppliers, and product catalog
+- Analytics charts and visual filters on the List Report
+- English and Polish localization
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        SAP BTP Cloud Foundry                    │
-│                                                                 │
-│  ┌──────────────┐    ┌──────────────┐    ┌───────────────────┐  │
-│  │  App Router  │───▶│  CAP Service │───▶│   HDI Container   │  │
-│  │  (approuter) │    │  (Node.js /  │    │   (SAP HANA DB)   │  │
-│  └──────┬───────┘    │  TypeScript) │    └───────────────────┘  │
-│         │            └──────┬───────┘                           │
-│  ┌──────▼───────┐           │                                   │
-│  │  HTML5 Repo  │    ┌──────▼──────────────────────────────┐   │
-│  │  (Fiori UI)  │    │         External BTP Services        │   │
-│  └──────────────┘    │  ┌────────────┐  ┌───────────────┐  │   │
-│                       │  │   XSUAA    │  │  Destination  │  │   │
-│                       │  │ (OAuth 2.0)│  │   Service     │  │   │
-│                       │  └────────────┘  └───────────────┘  │   │
-│                       └─────────────────────────────────────┘   │
-└──────────────────────────────────┬──────────────────────────────┘
-                                   │
-                    ┌──────────────┼──────────────┐
-                    ▼              ▼               ▼
-             API_COSTCENTER  API_BUSINESS    API_PRODUCT_SRV
-             _V2 (S/4HANA)  _PARTNER (S/4)  (S/4HANA OData)
+  ┌──────────────────────────────────────────────────────────────┐
+  │  SAP BTP · Cloud Foundry                                     │
+  │                                                              │
+  │  ┌─────────────┐  static   ┌────────────────┐               │
+  │  │  HTML5 Repo │ ◀──────── │   App Router   │ ◀── Browser   │
+  │  │  (Fiori UI) │           │  (XSUAA · JWT) │               │
+  │  └─────────────┘           └───────┬────────┘               │
+  │                                    │ /service/request/*      │
+  │                            ┌───────▼──────────────────────┐  │
+  │                            │   CAP Service  (Node.js · TS) │  │
+  │                            │  ┌───────────┐  ┌──────────┐  │  │
+  │                            │  │ Handlers  │  │ HANA HDI │  │  │
+  │                            │  │ (TypeSc.) │  │   (DB)   │  │  │
+  │                            │  └───────────┘  └──────────┘  │──┼──▶ Google Gemini
+  │                            └──────────────┬────────────────┘  │
+  │                                           │ Destination Svc   │
+  └───────────────────────────────────────────┼───────────────────┘
+                                              │
+                              ┌───────────────▼───────────────┐
+                              │  S/4HANA  (OData V2)          │
+                              │  · API_COSTCENTER_V2           │
+                              │  · API_BUSINESS_PARTNER        │
+                              │  · API_PRODUCT_SRV             │
+                              └───────────────────────────────┘
 ```
 
-### Request Lifecycle
+**Request lifecycle:**
 
 ```
   [Draft] ──── submit ────▶ [Submitted] ──── approve ────▶ [Approved]
-                                  │
-                                  └──────── reject ─────▶ [Rejected]
+                                 │
+                                 └──────── reject ─────▶  [Rejected]
 ```
 
 ---
@@ -70,28 +71,25 @@ CAPMAP digitizes the capital expenditure approval workflow for organizations tha
 | `@cap-js/sqlite` | ^2 | SQLite adapter (local development) |
 | `@sap/xssec` | ^4 | XSUAA token validation and user context |
 | `@sap-cloud-sdk/*` | ^4.6 | Typed S/4HANA API calls via named destination |
-| `@google/genai` | ^2.3 | Google Gemini AI (AI justification generation) |
-| `@sap/hdi-deploy` | ^5.6 | HANA HDI artifact deployer |
+| `@google/genai` | ^2.3 | Google Gemini AI — justification generation |
 
 ### Frontend
 
-| Technology | Version | Purpose |
-|---|---|---|
-| SAP UI5 | ^1.145 | UI framework |
-| `sap.fe.templates` | — | Fiori Elements — List Report + Object Page |
-| OData 4.01 | — | Client–service protocol |
-| `cds-plugin-ui5` | ^0.13 | Serves UI5 app through CDS dev server |
+| Technology | Purpose |
+|---|---|
+| SAP UI5 ^1.145 + `sap.fe.templates` | Fiori Elements — List Report + Object Page |
+| OData 4.01 | Client–service protocol |
+| `cds-plugin-ui5` ^0.13 | Serves UI5 app through CDS dev server |
 
-### Infrastructure (SAP BTP)
+### BTP Services
 
 | Service | Plan | Purpose |
 |---|---|---|
-| XSUAA | application | OAuth 2.0 authentication and authorization |
+| XSUAA | application | OAuth 2.0 auth and role-based access |
 | SAP HANA HDI Container | hdi-shared | Persistent database |
 | Connectivity | lite | S/4HANA on-premise tunneling |
-| Destination | lite | Named destination for S/4HANA APIs |
+| Destination | lite | Named destination lookup (`S4HANA_DESTINATION`) |
 | HTML5 Application Repository | app-host / app-runtime | Hosts the Fiori static app |
-| Cloud Foundry Runtime | — | Node.js service and app-router |
 
 ---
 
@@ -99,167 +97,102 @@ CAPMAP digitizes the capital expenditure approval workflow for organizations tha
 
 ```
 CAPMAP/
-│
-├── db/
-│   └── schema.cds               # Data model — Requests, Items, code-lists, aspects
-│
+├── db/schema.cds                # Data model — entities, code-lists, aspects
 ├── srv/
-│   ├── MainService.cds          # OData service definition — projections, actions, auth
-│   ├── MainService.ts           # Handler registration and bootstrapping
+│   ├── MainService.cds          # OData service — projections, actions, auth restrictions
+│   ├── MainService.ts           # Handler registration
 │   ├── handlers/
-│   │   ├── RequestHandler.ts    # Core logic: validate, approve/reject/submit, AI action
-│   │   ├── ItemHandler.ts       # Line-item totals recalculation
-│   │   ├── CostCenterHandler.ts # S/4 cost center mashup with localized names
-│   │   ├── SupplierHandler.ts   # S/4 Business Partner read-through + validation
+│   │   ├── RequestHandler.ts    # Validation, approve/reject/submit, AI action
+│   │   ├── ItemHandler.ts       # itemTotal + totalAmount recalculation
+│   │   ├── CostCenterHandler.ts # S/4 mashup with locale-aware names
+│   │   ├── SupplierHandler.ts   # S/4 Business Partner read-through + deletion check
 │   │   └── ProductHandler.ts    # S/4 product catalog with localized descriptions
-│   ├── utils/
-│   │   └── PromptTemplates.ts   # Gemini prompt builder (locale-aware)
-│   └── external/                # S/4HANA EDMX/CSN API definitions (generated)
-│       ├── API_COSTCENTER_V2.*
-│       ├── API_BUSINESS_PARTNER.*
-│       └── API_PRODUCT_SRV.*
-│
-├── app/
-│   ├── requestsui/
-│   │   └── webapp/
-│   │       ├── manifest.json    # Fiori app config — routing, models, targets
-│   │       ├── xs-app.json      # App-router routing rules for this app
-│   │       └── annotations.cds  # All UI annotations: facets, actions, charts, value-helps
-│   └── router/
-│       ├── xs-app.json          # Global app-router config (entry point routing)
-│       └── package.json         # @sap/approuter dependency
-│
-├── @cds-models/                 # Auto-generated TypeScript types — DO NOT edit manually
-│
+│   ├── utils/PromptTemplates.ts # Gemini prompt builder
+│   └── external/                # S/4HANA API definitions (EDMX/CSN — generated)
+├── app/requestsui/webapp/
+│   ├── manifest.json            # Fiori app config — routing, models, targets
+│   ├── xs-app.json              # App-router rules for this app
+│   └── annotations.cds          # All UI: facets, actions, charts, value-helps
+├── app/router/                  # Global app-router entry point
+├── @cds-models/                 # Auto-generated TS types — DO NOT edit
 ├── mta.yaml                     # BTP multi-target deployment descriptor
-├── xs-security.json             # XSUAA roles, scopes, and user attribute definitions
-├── .cdsrc.json                  # CDS runtime config — auth strategy, external API config
-├── package.json
-└── tsconfig.json                # ES2022, strict mode, moduleResolution: NodeNext
+└── xs-security.json             # XSUAA roles, scopes, user attribute definitions
 ```
 
 ---
 
 ## Data Model
 
-### `Requests` — CapEx request header
+**`Requests`** (header) — `cuid` + `managed` + `ApprovalTracking` aspect
 
 | Field | Type | Notes |
 |---|---|---|
-| `ID` | UUID | Auto-generated (`cuid`) |
-| `title` | String | Minimum 5 characters |
-| `totalAmount` | Decimal | Sum of all item totals; recalculated on item change |
+| `title` | String | Min 5 characters |
+| `totalAmount` | Decimal | Auto-recalculated from items |
 | `currency` | Currency | Default: USD |
-| `costCenter` | String | Reference to S/4HANA cost center |
-| `region` | String | Row-level security key (e.g. EU, US, PL) |
+| `costCenter` | String | S/4HANA cost center reference |
+| `region` | String | Row-level security key (EU / US / PL …) |
 | `status` | Association | → `Statuses` code-list |
-| `approver` | String | Set automatically on approve / reject |
-| `approvalDate` | Date | Set automatically on approve / reject |
-| `justification` | LargeString | Manual entry or AI-generated text |
-| `items` | Composition | → `Items` (cascade delete on header delete) |
+| `approver` / `approvalDate` | String / Date | Set on approve or reject |
+| `justification` | LargeString | Manual or AI-generated |
+| `items` | Composition | → `Items` (cascade delete) |
 
-### `Items` — line items
+**`Items`** (line items) — `productId`, `description`, `quantity`, `price`, `itemTotal` (calculated), `category` → Categories, `supplierId`
 
-| Field | Type | Notes |
-|---|---|---|
-| `productId` | String | S/4HANA product reference |
-| `description` | String | Free text |
-| `quantity` | Decimal | Mandatory |
-| `price` | Decimal | Mandatory |
-| `itemTotal` | Decimal | `quantity × price`, recalculated on every save |
-| `category` | Association | → `Categories` code-list |
-| `supplierId` | String | S/4HANA Business Partner reference |
-
-### Code-lists
-
-| Entity | Values |
-|---|---|
-| `Statuses` | D = Draft (grey), S = Submitted (orange), A = Approved (green), R = Rejected (red) |
-| `Categories` | IT, FU (Furniture), MA (Machinery), SW (Software) |
+**Code-lists:** `Statuses` — D Draft · S Submitted · A Approved · R Rejected (with criticality colours) | `Categories` — IT · FU · MA · SW
 
 ---
 
 ## OData Service
 
-**Base path**: `/service/request`  
-**Protocol**: OData 4.01 with draft support (`@odata.draft.enabled`)
+**Path:** `/service/request` | **Protocol:** OData 4.01 | **Draft:** enabled on `Requests`
 
-### Bound Actions on `Requests`
+### Bound Actions
 
-| Action | Available when | Effect |
+| Action | Visible when | Effect |
 |---|---|---|
 | `submitRequest()` | status = Draft | Sets status → Submitted |
-| `approveRequest()` | status = Submitted | Sets status → Approved, records approver and date |
-| `rejectRequest()` | status = Submitted | Sets status → Rejected, records approver and date |
+| `approveRequest()` | status = Submitted | Sets status → Approved, records approver + date |
+| `rejectRequest()` | status = Submitted | Sets status → Rejected, records approver + date |
 | `generateAIJustification()` | Draft only | Calls Gemini, saves 2–3 sentence justification |
 
-### Validation Rules
+**Validation:** `title` ≥ 5 chars · `justification` required when `totalAmount > 1000` · supplier `DeletionIndicator` checked via S/4HANA before save.
 
-- `title` must be at least 5 characters
-- `justification` is required when `totalAmount > 1000`
-- `supplierId` is validated against S/4HANA before save — blocked or deleted suppliers are rejected
-
-### Analytics Queries
-
-OData `$apply` aggregations are enabled and power the Fiori charts:
-
-```
-# Requests by status (donut chart)
-GET /service/request/Requests
-  ?$apply=groupby((status_code),aggregate(ID with countdistinct as RequestCount))
-
-# Spending by cost center (column chart)
-GET /service/request/Requests
-  ?$apply=groupby((costCenter),aggregate(totalAmount with sum as TotalAmountSum))
-```
+**Analytics:** `$apply` aggregations enabled — powers the List Report charts (groupby status / costCenter, sum / countdistinct on amounts and IDs).
 
 ---
 
-## Authorization Model
+## Authorization
 
-Defined in `xs-security.json` and enforced at the CDS service layer via `@restrict` annotations.
-
-| Role | Can do | Region filter |
+| Role | Access | Region filter |
 |---|---|---|
 | `Viewer` | Read all requests | None |
-| `RegionalManager` | Full CRUD | Only requests where `region = user.Region` |
+| `RegionalManager` | Full CRUD | Only where `region = $user.Region` |
 
-The `Region` user attribute is assigned per user in the BTP cockpit role collection. CDS enforces it transparently — no handler code needed for filtering.
+The `Region` user attribute is assigned in the BTP cockpit per role collection member. CDS enforces it automatically via `@restrict` — no handler code required.
 
-```cds
-// srv/MainService.cds
-@restrict: [
-  { grant: 'READ', to: 'Viewer' },
-  { grant: '*',    to: 'RegionalManager', where: 'region = $user.Region' }
-]
-```
+**Dev users** (mock auth, local only):
+
+| Username | Role | Regions |
+|---|---|---|
+| `admin-eu` | RegionalManager | EU, PL, EN |
+| `admin-us` | RegionalManager | US |
+| `readonly-user` | Viewer | — |
 
 ---
 
 ## External Integrations
 
-### S/4HANA APIs (OData V2)
-
 | API | Used for |
 |---|---|
-| `API_COSTCENTER_V2` | Cost center value-help with localized name and description |
-| `API_BUSINESS_PARTNER` | Supplier value-help and pre-save deletion status check |
+| `API_COSTCENTER_V2` | Cost center value-help with locale-aware name / description |
+| `API_BUSINESS_PARTNER` | Supplier value-help and pre-save deletion check |
 | `API_PRODUCT_SRV` | Product catalog with locale-aware descriptions |
 
-All three are configured in `.cdsrc.json`:
+- **Development:** Direct `sandbox.api.sap.com` URLs + `S4HANA_API_KEY` from `.env`
+- **Production:** Named destination `S4HANA_DESTINATION` via BTP Destination Service
 
-- **Development**: Direct `sandbox.api.sap.com` URLs with API key from `.env`
-- **Production**: Named destination `S4HANA_DESTINATION` via BTP Destination Service
-
-### Google Gemini AI
-
-| Setting | Value |
-|---|---|
-| Model | `gemini-2.5-flash-preview-05-20` |
-| Trigger | `generateAIJustification()` bound action |
-| Input | Item names, categories, quantities, user locale |
-| Output | 2–3 sentences of business justification |
-| Config | `GEMINI_API_KEY` in `.env` |
+**Gemini AI:** model `gemini-2.5-flash-preview-05-20` · key `GEMINI_API_KEY` in `.env` · prompt in `srv/utils/PromptTemplates.ts`
 
 ---
 
@@ -267,230 +200,61 @@ All three are configured in `.cdsrc.json`:
 
 ### Prerequisites
 
-- **Node.js** 20 or later
-- **SAP CDS CLI**: `npm install -g @sap/cds-dk`
-- **`.env` file** in the project root (see below)
-
-### Environment Setup
-
-Create a `.env` file in the project root:
+- Node.js 20+, SAP CDS CLI (`npm install -g @sap/cds-dk`)
+- `.env` file in the project root:
 
 ```env
 GEMINI_API_KEY=your_google_gemini_api_key
 S4HANA_API_KEY=your_sap_sandbox_api_key
 ```
 
-Create `default-env.json` for local Cloud SDK calls if you need real S/4HANA data (otherwise the sandbox URLs in `.cdsrc.json` are used directly).
-
-### Install and Start
+### Start
 
 ```bash
-# Install all dependencies (including app workspaces)
 npm install
-
-# Start the dev server with live reload (SQLite, mock auth)
-cds watch
-
-# Start and automatically open the Fiori app in the browser
-npm run watch-requestsui
+cds watch                   # dev server at localhost:4004 (SQLite, mock auth)
+npm run watch-requestsui    # same + auto-opens the Fiori app in the browser
 ```
 
-The dev server starts at **http://localhost:4004** with:
-- Mock authentication — no XSUAA token required
-- SQLite in-memory database
-- Pre-configured local users (see table below)
-
-### Dev Users
-
-Log in with any of these credentials at the browser prompt:
-
-| Username | Role | Accessible Regions |
-|---|---|---|
-| `admin-eu` | RegionalManager | EU, PL, EN |
-| `admin-us` | RegionalManager | US |
-| `readonly-user` | Viewer | All (read-only) |
-
-### Regenerate TypeScript Types
-
-Run this after any change to `.cds` model or service files:
+After any change to `.cds` model files, regenerate TypeScript types:
 
 ```bash
 cds-typer '*' --outputDirectory @cds-models
 ```
 
-Types are imported in handlers using the `#cds-models/*` path alias defined in `package.json`.
-
 ---
 
 ## Fiori UI
 
-The app uses **Fiori Elements** — no custom view XML or controllers are needed. All UI behavior (layout, actions, charts, value-helps) is driven by **OData annotations** in `app/requestsui/annotations.cds`.
+**Template:** Fiori Elements List Report + Object Page — all layout driven by `annotations.cds`, no custom view XML.
 
-### Pages
-
-| Page | Template | Entity |
-|---|---|---|
-| List Report | `sap.fe.templates.ListReport` | `Requests` |
-| Request Object Page | `sap.fe.templates.ObjectPage` | `Requests` (draft-enabled) |
-| Item Object Page | `sap.fe.templates.ObjectPage` | `Items` (nested in draft) |
-
-### UI Features
-
-| Feature | Description |
+| Page | Entity |
 |---|---|
-| Visual Filters | Mini bar charts for Status and Cost Center filter the list in real time |
-| Analytics Tab | Column chart (amount by cost center) + Donut chart (requests by status) |
-| Draft Indicator | Unsaved changes are persisted to the database automatically |
-| Contextual Actions | Submit / Approve / Reject buttons appear based on current request status |
-| AI Button | Generates business justification with a single click (draft mode only) |
-| Value Helps | Cost centers, suppliers, and products loaded live from S/4HANA |
-| Side Effects | Changing item quantity or price immediately updates the request total |
+| List Report | `Requests` |
+| Request Object Page | `Requests` (draft-enabled) |
+| Item Object Page | `Items` (nested in draft) |
 
-### Localization
-
-The app ships with **English** and **Polish** translations (`app/requestsui/webapp/i18n/`). S/4HANA text APIs are queried with the user's locale for cost center names and product descriptions.
+**Notable features:** visual filter bar (mini charts for Status + CostCenter) · analytics tab (column + donut charts) · contextual action buttons (Submit / Approve / Reject appear based on status) · AI button (draft only) · value-helps loaded live from S/4HANA · side effects refresh totals and justification on save.
 
 ---
 
-## Building and Deploying to SAP BTP
-
-### Prerequisites
-
-- Cloud Foundry CLI: `cf` with the MultiApps plugin (`cf install-plugin multiapps`)
-- `mbt` build tool — included in `devDependencies`, available after `npm install`
-- Logged in to your BTP CF space: `cf login`
-- BTP services provisioned: XSUAA, HANA HDI, Destination, HTML5 repo
-
-### Build
+## Deploying to SAP BTP
 
 ```bash
-# Produces: mta_archives/CAPMAP_1.0.0.mtar
-npm run build
-```
-
-### Deploy
-
-```bash
+npm run build               # produces mta_archives/CAPMAP_1.0.0.mtar
 cf deploy mta_archives/CAPMAP_1.0.0.mtar
 ```
 
-### Deployment Order (MTA)
+MTA deploys in order: HANA HDI artifacts → CAP service → Fiori app (HTML5 repo) → app-router.
 
-The MTA descriptor orchestrates parallel and sequential deployments:
+After deploy, assign role collections in the BTP cockpit:
 
-| Module | Type | What it does |
-|---|---|---|
-| `CAPMAP-db-deployer` | HDB | Deploys HANA HDI artifacts (tables, views) |
-| `CAPMAP-srv` | Node.js | Starts the CAP OData service |
-| `CAPMAPrequestsui` | HTML5 | Builds the Fiori app and uploads to HTML5 repo |
-| `CAPMAP-app-deployer` | Content | Registers the HTML5 app in the repo |
-| `CAPMAP` | Node.js | Starts the app-router (public entry point) |
-
-### Post-Deploy Configuration
-
-In the **BTP cockpit**, assign role collections to users:
-
-| Role Collection | Use for |
+| Role Collection | Notes |
 |---|---|
-| `CAPMAP-Viewer` | Read-only access — all regions |
-| `CAPMAP-RegionalManager` | Full access — set the **Region** attribute (e.g. `EU`) |
+| `CAPMAP-Viewer` | Read-only |
+| `CAPMAP-RegionalManager` | Set the **Region** attribute (e.g. `EU`) |
 
----
-
-## Handler Development Guide
-
-All service event handlers follow a consistent pattern. Handlers are registered in `MainService.ts` via `cds.on('bootstrap')`.
-
-```typescript
-// srv/handlers/MyFeatureHandler.ts
-import cds from '@sap/cds'
-import { Requests } from '#cds-models/RequestService'
-
-export class MyFeatureHandler {
-  constructor(
-    private srv: cds.ApplicationService,
-    private externalApi?: cds.RemoteService
-  ) {}
-
-  register() {
-    this.srv.before('CREATE', Requests, this.validate.bind(this))
-    this.srv.on('bound action', Requests, 'myAction', this.myAction.bind(this))
-    this.srv.after('READ',   Requests, this.enrich.bind(this))
-  }
-
-  private async validate(req: cds.Request) {
-    if (!req.data.title) return req.error(400, 'Title is required')
-  }
-}
-```
-
-### Useful Patterns
-
-**Access user context and attributes**:
-```typescript
-const { user } = cds.context
-const region = user.attr?.region    // from XSUAA token attribute
-const locale = user.locale          // e.g. 'en_US'
-```
-
-**Read from an external S/4HANA API**:
-```typescript
-const bpApi = await cds.connect.to('API_BUSINESS_PARTNER')
-const result = await bpApi.run(
-  SELECT.from('A_Supplier').where({ Supplier: id })
-)
-```
-
-**Use Cloud SDK for typed, resilient S/4HANA calls**:
-```typescript
-import { businessPartnerService } from './external/API_BUSINESS_PARTNER'
-const { supplierApi } = businessPartnerService()
-const supplier = await supplierApi
-  .requestBuilder()
-  .getByKey(supplierId)
-  .execute({ destinationName: 'S4HANA_DESTINATION' })
-```
-
-**Raise a user-visible error**:
-```typescript
-req.error(400, 'Justification is required for amounts over 1000', 'justification')
-```
-
----
-
-## Scripts Reference
-
-| Script | Command | When to use |
-|---|---|---|
-| `npm start` | `npx cds-serve` | Production-style local start |
-| `npm run watch` | `cds watch` | Development with live reload |
-| `npm run watch-requestsui` | `cds watch --open ...` | Development + auto-open Fiori app |
-| `npm run build` | `mbt build` | Produce the `.mtar` archive for BTP deploy |
-
----
-
-## Troubleshooting
-
-**TypeScript types not found after a model change**  
-Regenerate them: `cds-typer '*' --outputDirectory @cds-models`
-
-**Supplier validation always fails locally**  
-Check `.cdsrc.json` for the `API_BUSINESS_PARTNER` sandbox URL and verify `S4HANA_API_KEY` is set in `.env`.
-
-**AI justification returns an error**  
-Verify `GEMINI_API_KEY` is present in `.env` and the Gemini API is enabled in your Google Cloud project.
-
-**Stale draft data after a schema change**  
-Delete the local SQLite file to reset all state:  
-```bash
-rm db.sqlite
-```
-
-**MTA build fails**  
-Ensure all workspace dependencies are installed (`npm install` from the root) and that `mbt` is available (`npx mbt --version`).
-
-**Cost centers or products show no description**  
-The S/4HANA sandbox may be unavailable. `CostCenterHandler` logs a warning and falls back to mock data; `ProductHandler` returns items without descriptions.
+For handler patterns, code examples, and troubleshooting see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ---
 
