@@ -48,30 +48,105 @@ annotate service.Requests with @(
             }
         ],
     },
+
+    // Attachments — file upload + metadata, visible in all statuses.
+    // Editability is controlled by the entity-level UI.UpdateHidden (Draft only).
+    UI.FieldGroup #AttachmentsGroup : {
+        $Type : 'UI.FieldGroupType',
+        Label : 'Attachments',
+        Data : [
+            {
+                $Type : 'UI.DataField',
+                Value : fileName,
+                Label : 'File Name',
+            },
+            {
+                $Type : 'UI.DataField',
+                Value : mediaType,
+                Label : 'File Type',
+            },
+            {
+                $Type : 'UI.DataField',
+                Value : attachment,
+                Label : 'Attachment',
+            },
+        ],
+    },
+
+    // DataPoint for aiComplianceScore with 3-tier criticality via CriticalityCalculation:
+    //   score < 50  → Negative  (red,    1)
+    //   score 50-79 → Critical  (orange, 2)
+    //   score >= 80 → Positive  (green,  3)
+    UI.DataPoint #AIScoreDataPoint : {
+        Value : aiComplianceScore,
+        Title : 'AI Compliance Score',
+        CriticalityCalculation : {
+            ImprovementDirection  : #Maximize,
+            DeviationRangeLowValue  : 50,
+            ToleranceRangeLowValue  : 80,
+        },
+    },
+
+    // AI Audit Results — hidden while Draft, shown after submission.
+    UI.FieldGroup #AIAuditResultsGroup : {
+        $Type : 'UI.FieldGroupType',
+        Label : 'AI Audit Results',
+        Data : [
+            {
+                $Type  : 'UI.DataFieldForAnnotation',
+                Target : '@UI.DataPoint#AIScoreDataPoint',
+                Label  : 'Compliance Score',
+            },
+            {
+                $Type : 'UI.DataField',
+                Value : aiAuditNotes,
+                Label : 'Audit Notes',
+            },
+        ],
+    },
+
     UI.Facets : [
         {
+            // 1 — always visible
             $Type : 'UI.ReferenceFacet',
-            ID : 'GeneratedFacet1',
+            ID    : 'GeneratedFacet1',
             Label : '{i18n>GeneralInfo}',
             Target : '@UI.FieldGroup#GeneratedGroup',
         },
-         {
+        {
+            // 2 — always visible
             $Type : 'UI.ReferenceFacet',
-            ID : 'JustificationGroup1',
+            ID    : 'JustificationGroup1',
             Label : '{i18n>Justification}',
             Target : '@UI.FieldGroup#JustificationGroup',
         },
         {
+            // 3 — always visible; upload locked when not Draft by entity-level UI.UpdateHidden
+            $Type : 'UI.ReferenceFacet',
+            ID    : 'AttachmentsFacet',
+            Label : '{i18n>Attachments}',
+            Target : '@UI.FieldGroup#AttachmentsGroup',
+        },
+        {
+            // 4 — always visible
             $Type : 'UI.CollectionFacet',
-            ID : 'RequestItemsFacet',
+            ID    : 'RequestItemsFacet',
             Label : '{i18n>RequestItemsSection}',
             Facets : [
                 {
                     $Type : 'UI.ReferenceFacet',
-                    ID : 'ItemsTableFacet',
+                    ID    : 'ItemsTableFacet',
                     Target : 'items/@UI.LineItem',
                 },
             ],
+        },
+        {
+            // 5 — hidden while Draft; visible after Submit / Approve / Reject
+            $Type : 'UI.ReferenceFacet',
+            ID    : 'AIAuditResultsFacet',
+            Label : '{i18n>AuditScore}',
+            Target : '@UI.FieldGroup#AIAuditResultsGroup',
+            ![@UI.Hidden] : {$edmJson: {$Eq: [{$Path: 'status_code'}, 'D']}},
         },
     ],
     
