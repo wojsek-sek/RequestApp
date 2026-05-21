@@ -72,7 +72,17 @@
       },
       "destinations": true,
       "connectivity": true,
-      "html5-repo": true
+      "html5-repo": true,
+      "[development]": {
+        "AI_Agent_Hub": {
+          "kind": "mock",
+          "impl": "srv/mocks/ai-agent-hub-mock.js"
+        },
+        "VectorEngine": {
+          "kind": "local-vector-mock",
+          "impl": "srv/mocks/vector-engine-mock.js"
+        }
+      }
     }
   }
   
