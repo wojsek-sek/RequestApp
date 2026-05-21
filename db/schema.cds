@@ -28,17 +28,31 @@ entity Requests : cuid, managed, ApprovalTracking {
     items        : Composition of many Items on items.request = $self;
     region : String(2); // np. 'EU', 'US'
 
-    // Attachment (uploaded PDF / document before submission)
-    @Core.MediaType             : mediaType
-    @Core.ContentDisposition.Filename: fileName
-    attachment        : LargeBinary;
-    @Core.IsMediaType
-    mediaType         : String;
-    fileName          : String;
+    // Uploaded documents (PDFs etc.) attached to this request — many per request
+    attachments       : Composition of many RequestAttachments on attachments.request = $self;
 
     // AI agent outputs written by submitRequest flow
     aiComplianceScore : Integer;
     aiAuditNotes      : String;
+}
+
+// ---------------------------------------------------------
+// Request Attachments — many files per Request
+// ---------------------------------------------------------
+entity RequestAttachments {
+    key ID        : UUID;
+    request       : Association to Requests;
+
+    @Core.MediaType             : mediaType
+    @Core.ContentDisposition.Filename: fileName
+    attachment    : LargeBinary;
+    @Core.IsMediaType
+    mediaType     : String;
+    fileName      : String;
+
+    // Auto-populated by CAP managed semantics on insert
+    uploadedAt    : Timestamp @cds.on.insert : $now;
+    uploadedBy    : String    @cds.on.insert : $user;
 }
 
 // ---------------------------------------------------------

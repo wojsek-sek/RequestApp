@@ -93,19 +93,25 @@ export class RequestHandler {
         const keys = req.params[0];
         const currentUserId = req.user.id;
 
-        // Fetch the active record to inspect attachment and current fields
+        // Fetch the active request record
         const current = await SELECT.one.from(Requests).where(keys) as any;
 
-        if (!current?.attachment) {
-            return req.error(400, 'ATTACHMENT_REQUIRED_BEFORE_SUBMIT', 'attachment');
+        // Require at least one attachment in the composition
+        const attachments = await SELECT
+            .from('RequestService.RequestAttachments')
+            .where({ request_ID: current.ID }) as any[];
+
+        if (!attachments || attachments.length === 0) {
+            return req.error(400, 'At least one attachment required');
         }
 
-        // Run AI agent pipeline before changing status
+        // Run AI agent pipeline before changing status — use the first attachment's fileName
+        const firstAttachment = attachments[0];
         const agentHub = await cds.connect.to('AI_Agent_Hub');
 
         const analysis = await agentHub.send('analyzeDocument', {
             requestId:   current.ID,
-            fileName:    current.fileName,
+            fileName:    firstAttachment.fileName,
             totalAmount: current.totalAmount,
         }) as any;
 

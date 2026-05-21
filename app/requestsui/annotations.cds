@@ -49,30 +49,6 @@ annotate service.Requests with @(
         ],
     },
 
-    // Attachments — file upload + metadata, visible in all statuses.
-    // Editability is controlled by the entity-level UI.UpdateHidden (Draft only).
-    UI.FieldGroup #AttachmentsGroup : {
-        $Type : 'UI.FieldGroupType',
-        Label : 'Attachments',
-        Data : [
-            {
-                $Type : 'UI.DataField',
-                Value : fileName,
-                Label : 'File Name',
-            },
-            {
-                $Type : 'UI.DataField',
-                Value : mediaType,
-                Label : 'File Type',
-            },
-            {
-                $Type : 'UI.DataField',
-                Value : attachment,
-                Label : 'Attachment',
-            },
-        ],
-    },
-
     // DataPoint for aiComplianceScore with 3-tier criticality via CriticalityCalculation:
     //   score < 50  → Negative  (red,    1)
     //   score 50-79 → Critical  (orange, 2)
@@ -121,11 +97,17 @@ annotate service.Requests with @(
             Target : '@UI.FieldGroup#JustificationGroup',
         },
         {
-            // 3 — always visible; upload locked when not Draft by entity-level UI.UpdateHidden
-            $Type : 'UI.ReferenceFacet',
+            // 3 — always visible; add/delete locked when not Draft by entity-level UI.UpdateHidden
+            $Type : 'UI.CollectionFacet',
             ID    : 'AttachmentsFacet',
             Label : '{i18n>Attachments}',
-            Target : '@UI.FieldGroup#AttachmentsGroup',
+            Facets : [
+                {
+                    $Type : 'UI.ReferenceFacet',
+                    ID    : 'AttachmentsTableFacet',
+                    Target : 'attachments/@UI.LineItem',
+                },
+            ],
         },
         {
             // 4 — always visible
@@ -491,6 +473,47 @@ annotate service.Items with {
     );
  
 };
+// ── RequestAttachments — table view inside the Object Page ────────────────
+annotate service.RequestAttachments with @(
+    UI.LineItem : [
+        {
+            $Type : 'UI.DataField',
+            Value : fileName,
+            Label : 'File Name',
+        },
+        {
+            $Type : 'UI.DataField',
+            Value : mediaType,
+            Label : 'File Type',
+        },
+        {
+            $Type : 'UI.DataField',
+            Value : uploadedAt,
+            Label : 'Uploaded At',
+        },
+        {
+            $Type : 'UI.DataField',
+            Value : uploadedBy,
+            Label : 'Uploaded By',
+        },
+    ],
+    UI.HeaderInfo : {
+        TypeName       : 'Attachment',
+        TypeNamePlural : 'Attachments',
+        Title          : {
+            $Type : 'UI.DataField',
+            Value : fileName,
+        },
+    }
+);
+
+annotate service.RequestAttachments with {
+    ID         @UI.Hidden;
+    request    @UI.Hidden;
+    uploadedAt @readonly;
+    uploadedBy @readonly;
+};
+
 annotate service.Requests with {
     totalAmount @Common.Label : '{i18n>Amount}'
 };
