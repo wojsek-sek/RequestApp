@@ -16,7 +16,8 @@ B2B **CapEx Request Management** app built on SAP CAP (Node.js + TypeScript) wit
 | Database (dev) | SQLite via `@cap-js/sqlite@^2` |
 | Auth | XSUAA (`@sap/xssec@^4`) — OAuth 2.0 |
 | S/4HANA integration | SAP Cloud SDK v4 (`@sap-cloud-sdk/connectivity`, `http-client`, `resilience`) |
-| AI | Google Gemini `gemini-2.5-flash-preview-05-20` via `@google/genai@^2.3.0` |
+| AI | Google Gemini `gemini-3-flash-preview` via `@google/genai@^2.3.0` |
+| File attachments | `@cap-js/attachments` plugin — official CAP attachment solution |
 | Frontend | Fiori Elements (List Report + Object Page) on UI5 v1.145+ |
 | Build | `mbt build` → MTA archive for BTP deployment |
 
@@ -59,7 +60,15 @@ CAPMAP/
 - `costCenter` (ref to S/4 cost center), `region` (row-level security key)
 - `status` → `Statuses` code-list (D=Draft, S=Submitted, A=Approved, R=Rejected)
 - `approver`, `approvalDate`, `justification` (from `ApprovalTracking` aspect)
+- `aiComplianceScore` (Integer), `aiAuditNotes` (String) — AI document analysis results
+- `attachments` — `Composition of many Attachments` (from `@cap-js/attachments` plugin)
 - Composition: `items` (cascade-delete on header delete)
+
+**Attachments** (managed by `@cap-js/attachments` plugin):
+- Declared as `using { Attachments } from '@cap-js/attachments'` in schema.cds
+- Plugin handles upload UI, filename/mimeType extraction, malware scanning automatically
+- **Do NOT** declare a separate `RequestAttachments` entity — plugin generates everything
+- In service context the entity is named `RequestService.Requests.attachments`; its generated TypeScript class is `Requests.attachments`
 
 **Items** (line-item entity, `cuid`):
 - `productId`, `description`, `quantity`, `price`, `itemTotal` (calculated)
@@ -77,6 +86,7 @@ Requires: `authenticated-user`
 Key projections and restrictions:
 - **Requests**: `@odata.draft.enabled`; Viewer=READ, RegionalManager=CRUD (WHERE region IN user.region)
 - **Items**: draft composition of Requests
+- **Requests_attachments**: auto-registered by `@cap-js/attachments` — do NOT add manually to MainService.cds
 - **CostCenters**: read-only mashup of `API_COSTCENTER_V2.A_CostCenter` + `to_Text` expansion
 - **Suppliers**: read-only mashup of `API_BUSINESS_PARTNER.A_Supplier`
 - **Products**: read-only mashup of `API_PRODUCT_SRV.A_Product` + `to_Description` expansion
@@ -84,7 +94,7 @@ Key projections and restrictions:
 **OData aggregation** enabled: groupby (status, costCenter, currency), sum/min/max on totalAmount, countdistinct on ID. Powers the analytics charts.
 
 **Bound actions on Requests**:
-- `submitRequest()` — sets status=S
+- `submitRequest()` — validates attachment present, runs AI compliance check, sets status=S
 - `approveRequest()` — sets status=A, records approver + date
 - `rejectRequest()` — sets status=R, records approver + date
 - `generateAIJustification()` — calls Gemini, persists result to `justification`
@@ -114,9 +124,24 @@ export class SomeHandler {
 **Key business rules in `RequestHandler.ts`**:
 - `justification` required when `totalAmount > 1000`
 - `title` min length 5 chars
-- Supplier `DeletionIndicator` check via Cloud SDK before save
-- `syncStatusCriticality()`: maps status codes to UI criticality numbers on every READ
+- Supplier `DeletionIndicator` check via Cloud SDK before save (graceful degradation in dev)
 - After item PATCH/POST/DELETE: `ItemHandler` recalculates `Requests.totalAmount`
+
+**Draft-enabled entity key extraction** (critical pattern):
+```typescript
+// req.params[0] for draft entities includes { ID, IsActiveEntity: true }
+// IsActiveEntity is virtual — NEVER pass it to a DB WHERE clause
+const { ID } = req.params[0] as { ID: string }  // extract only what you need
+await UPDATE(Requests).set({ ... }).where({ ID })
+```
+
+**Querying attachments in handlers**:
+```typescript
+// Use Requests.attachments (generated class, name='RequestService.Requests.attachments')
+// NEVER use SELECT.from('sap.attachments.Attachments') — it's an abstract aspect, not a concrete entity
+import { Requests } from '#cds-models/RequestService'
+const attachments = await SELECT.from(Requests.attachments).where({ up__ID: ID }) as Requests.attachment[]
+```
 
 ---
 
@@ -128,12 +153,33 @@ Prompt: `srv/utils/PromptTemplates.ts`
 ```typescript
 // Bound action — always on draft
 // Sends item names + categories + user locale to Gemini
-// Model: gemini-2.5-flash-preview-05-20
+// Model: gemini-3-flash-preview
 // Result: 2-3 sentence business justification, locale-aware (en/pl)
 // Side-effect annotation in annotations.cds refreshes justification field on UI
 ```
 
 API key: stored in `.env` as `GEMINI_API_KEY`.
+
+---
+
+## MCP Servers (AI coding assistance)
+
+Three SAP MCP servers configured in `.claude/settings.json` at project root.
+
+| Server | Purpose |
+|---|---|
+| `cap` | CDS model search, CAP documentation (offline mode) |
+| `ui5` | SAPUI5 API knowledge |
+| `fiori` | Fiori Elements generation/editing |
+
+**Windows-specific**: All servers run via `node node_modules/...` (NOT `npx`). On Windows, `npx` tries to execute bash shebang scripts and crashes with `SyntaxError`. Packages are installed as devDependencies.
+
+CAP server runs with `CDS_MCP_OFFLINE=true` — embeddings pre-downloaded via:
+```powershell
+node node_modules/@cap-js/mcp-server/index.js --download
+```
+
+MCP servers load at session start — if tools from `cap`/`ui5`/`fiori` are not visible, restart Claude Code from the `C:\Dev\CAPMAP` directory.
 
 ---
 
@@ -165,11 +211,12 @@ All three are OData V2 remote services. Registered in `.cdsrc.json`.
 **Dev**: Direct sandbox.api.sap.com URLs + APIKey in `.env`  
 **Prod**: Named destination `S4HANA_DESTINATION` via BTP Destination Service
 
+**Graceful degradation pattern** (validateSupplierBeforeSave): If the Cloud SDK throws with no HTTP response (i.e., `!error.response`), the destination is not configured — warn and allow save. Only block on actual HTTP error responses. This prevents dev crashes while maintaining prod behavior.
+
 Cloud SDK pattern used for supplier validation:
 ```typescript
-import { businessPartnerService } from './external/API_BUSINESS_PARTNER'
-const { supplierApi } = businessPartnerService()
-// then execute via destination
+import { executeHttpRequest } from '@sap-cloud-sdk/http-client'
+// executeHttpRequest({ destinationName: 'S4HANA_DESTINATION' }, { method: 'GET', url: '...' })
 ```
 
 ---
@@ -187,7 +234,8 @@ const { supplierApi } = businessPartnerService()
 
 **Key annotations** (`annotations.cds`):
 - Header facets: Status DataPoint + TotalAmount DataPoint
-- Object page facets: GeneralInfo, Justification (multiline), Items table
+- Object page facets: GeneralInfo, Justification (multiline), AI Audit Results, Attachments (plugin), Items table
+- Attachments facet targets `attachments/@UI.LineItem` — provided automatically by `@cap-js/attachments`, no manual annotation needed
 - Action visibility: Submit (status=D), Approve/Reject (status=S)
 - `generateAIJustification` has `@Common.SideEffects` → refreshes justification field
 - Charts: RequestsByStatus (donut), AmountByCostCenter (column)
@@ -251,10 +299,15 @@ cf deploy mta_archives/CAPMAP_1.0.0.mtar
 
 ## Conventions & Gotchas
 
-- **Types**: Always import from `#cds-models/...` (auto-generated, path alias in `package.json`). Never hand-write entity types.
-- **Draft handling**: Requests and Items have parallel `_drafts` shadow tables. Actions like `submitRequest` must work on both active and draft contexts.
+- **Types**: Always import from `#cds-models/...` (auto-generated, path alias in `package.json`). Never hand-write entity types. Use `cds-typer '*' --outputDirectory @cds-models` after any CDS model change.
+- **Singular vs plural CDS classes**: `Request` (singular, `is_singular: true`) for `SELECT.one.from(Request)`. `Requests` (array type) for `UPDATE(Requests)` and collection queries.
+- **CQL globals**: `SELECT`, `UPDATE`, `INSERT` are CAP globals — require `"types": ["@cap-js/cds-types"]` in `tsconfig.json` to resolve.
+- **Draft handling**: Requests and Items have parallel `_drafts` shadow tables. Actions like `submitRequest` must work on both active and draft contexts. Use `'RequestService.Items.drafts'` string for draft table queries.
+- **Draft-enabled action keys**: `req.params[0]` includes `{ ID, IsActiveEntity: true }`. `IsActiveEntity` is virtual — always destructure `const { ID } = req.params[0]` before DB queries.
 - **totalAmount recalculation**: Must be triggered from `ItemHandler` after every item write, not inline in item save. Parent entity patched directly via `UPDATE Requests SET totalAmount=...`.
-- **Status criticality**: `syncStatusCriticality()` runs in every `after READ` — do not set `criticality` elsewhere or it will be overwritten.
-- **External API errors**: CostCenterHandler has a mock fallback; SupplierHandler returns HTTP 502 on failure. Supplier deletion check blocks the entire save.
+- **Attachments plugin**: `sap.attachments.Attachments` is an abstract CDS aspect — `SELECT.from('sap.attachments.Attachments')` throws "Query source must be an entity or an association". Always query via the generated composition class: `SELECT.from(Requests.attachments).where({ up__ID: ID })`.
+- **S4HANA destination in dev**: `validateSupplierBeforeSave` catches Cloud SDK errors; if `!error.response` (no HTTP response = destination not found), it warns and allows save rather than crashing. Never call `req.error()` in the no-destination branch — unhandled rejection crashes the process and causes port conflicts on restart.
+- **External API errors**: CostCenterHandler has a mock fallback; SupplierHandler gracefully degrades when destination is missing. Supplier deletion check blocks save on actual HTTP 404/error responses only.
 - **Localization**: Both CostCenter and Product handlers parse user locale from `cds.context.user.locale` (format: `en_US`). First 2 chars = language code for S/4 text lookups.
 - **mbt build** requires the `mbt` npm package and Cloud Foundry CLI + `cf deploy` plugin.
+- **MCP servers** (Windows): restart Claude Code from `C:\Dev\CAPMAP` if cap/ui5/fiori tools are missing. Do not use `npx` — use `node` with direct script paths.

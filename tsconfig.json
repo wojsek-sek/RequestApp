@@ -7,7 +7,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "sourceMap": true,
-    "outDir": "dist"
+    "rootDir": ".",
+    "outDir": "dist",
+    "types": ["@cap-js/cds-types"]
   },
   "exclude": [
     "app/**",

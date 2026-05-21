@@ -76,9 +76,6 @@ service RequestService {
         request.status.code as status_code
     };
 
-    // Attachments — composition of Requests; draft state inherited from parent
-    entity RequestAttachments as projection on my.RequestAttachments;
-
     // CodeLists (Dictionaries) - these should be strictly read-only for the UI
     // We don't want business users modifying statuses or categories via API
     @readonly

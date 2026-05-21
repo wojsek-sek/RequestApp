@@ -18,7 +18,6 @@ export default class RequestService extends cds.ApplicationService {
         const productHandler = new ProductHandler(productApi);
 
         // --- Requests ---
-        this.before(['CREATE', 'UPDATE'], 'Requests', requestHandler.syncStatusCriticality);
         this.before(['CREATE', 'UPDATE'], 'Requests', requestHandler.validateOnWrite);
         this.before('READ', 'Requests', requestHandler.injectStatusCodeColumn);
         this.before('SAVE', 'Requests', requestHandler.validateSupplierBeforeSave);

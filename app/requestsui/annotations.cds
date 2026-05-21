@@ -97,6 +97,14 @@ annotate service.Requests with @(
             Target : '@UI.FieldGroup#JustificationGroup',
         },
         {
+            // 5 — hidden while Draft; visible after Submit / Approve / Reject
+            $Type : 'UI.ReferenceFacet',
+            ID    : 'AIAuditResultsFacet',
+            Label : '{i18n>AuditScore}',
+            Target : '@UI.FieldGroup#AIAuditResultsGroup',
+            ![@UI.Hidden] : {$edmJson: {$Eq: [{$Path: 'status_code'}, 'D']}},
+        },
+        {
             // 3 — always visible; add/delete locked when not Draft by entity-level UI.UpdateHidden
             $Type : 'UI.CollectionFacet',
             ID    : 'AttachmentsFacet',
@@ -121,15 +129,7 @@ annotate service.Requests with @(
                     Target : 'items/@UI.LineItem',
                 },
             ],
-        },
-        {
-            // 5 — hidden while Draft; visible after Submit / Approve / Reject
-            $Type : 'UI.ReferenceFacet',
-            ID    : 'AIAuditResultsFacet',
-            Label : '{i18n>AuditScore}',
-            Target : '@UI.FieldGroup#AIAuditResultsGroup',
-            ![@UI.Hidden] : {$edmJson: {$Eq: [{$Path: 'status_code'}, 'D']}},
-        },
+        }
     ],
     
     UI.SelectionFields: [
@@ -472,46 +472,6 @@ annotate service.Items with {
         }
     );
  
-};
-// ── RequestAttachments — table view inside the Object Page ────────────────
-annotate service.RequestAttachments with @(
-    UI.LineItem : [
-        {
-            $Type : 'UI.DataField',
-            Value : fileName,
-            Label : 'File Name',
-        },
-        {
-            $Type : 'UI.DataField',
-            Value : mediaType,
-            Label : 'File Type',
-        },
-        {
-            $Type : 'UI.DataField',
-            Value : uploadedAt,
-            Label : 'Uploaded At',
-        },
-        {
-            $Type : 'UI.DataField',
-            Value : uploadedBy,
-            Label : 'Uploaded By',
-        },
-    ],
-    UI.HeaderInfo : {
-        TypeName       : 'Attachment',
-        TypeNamePlural : 'Attachments',
-        Title          : {
-            $Type : 'UI.DataField',
-            Value : fileName,
-        },
-    }
-);
-
-annotate service.RequestAttachments with {
-    ID         @UI.Hidden;
-    request    @UI.Hidden;
-    uploadedAt @readonly;
-    uploadedBy @readonly;
 };
 
 annotate service.Requests with {

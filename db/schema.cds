@@ -1,6 +1,7 @@
 namespace capmap.db;
 
 using { cuid, managed, sap.common.CodeList } from '@sap/cds/common';
+using { Attachments } from '@cap-js/attachments';
 
 // ---------------------------------------------------------
 // Custom Aspect: Reusable block of fields for approvals
@@ -28,31 +29,12 @@ entity Requests : cuid, managed, ApprovalTracking {
     items        : Composition of many Items on items.request = $self;
     region : String(2); // np. 'EU', 'US'
 
-    // Uploaded documents (PDFs etc.) attached to this request — many per request
-    attachments       : Composition of many RequestAttachments on attachments.request = $self;
+    // Uploaded documents (PDFs etc.) — managed by @cap-js/attachments plugin
+    attachments       : Composition of many Attachments;
 
     // AI agent outputs written by submitRequest flow
     aiComplianceScore : Integer;
     aiAuditNotes      : String;
-}
-
-// ---------------------------------------------------------
-// Request Attachments — many files per Request
-// ---------------------------------------------------------
-entity RequestAttachments {
-    key ID        : UUID;
-    request       : Association to Requests;
-
-    @Core.MediaType             : mediaType
-    @Core.ContentDisposition.Filename: fileName
-    attachment    : LargeBinary;
-    @Core.IsMediaType
-    mediaType     : String;
-    fileName      : String;
-
-    // Auto-populated by CAP managed semantics on insert
-    uploadedAt    : Timestamp @cds.on.insert : $now;
-    uploadedBy    : String    @cds.on.insert : $user;
 }
 
 // ---------------------------------------------------------

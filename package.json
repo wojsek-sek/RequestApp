@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
+    "@cap-js/attachments": "^3.12.2",
     "@cap-js/hana": "^2",
     "@google/genai": "^2.3.0",
     "@google/generative-ai": "^0.24.1",
@@ -16,10 +17,13 @@
   "devDependencies": {
     "@cap-js/cds-typer": ">=0.1",
     "@cap-js/cds-types": "^0.15.0",
+    "@cap-js/mcp-server": "^0.0.5",
     "@cap-js/sqlite": "^2",
+    "@sap-ux/fiori-mcp-server": "^0.7.1",
     "@sap/cds-dk": "^9",
     "@sapui5/types": "^1.146.0",
     "@types/node": "^24.0.0",
+    "@ui5/mcp-server": "^0.2.11",
     "cds-plugin-ui5": "^0.13.0",
     "mbt": "^1.2.45",
     "tsx": "^4",
