@@ -93,11 +93,32 @@ export class RequestHandler {
         const keys = req.params[0];
         const currentUserId = req.user.id;
 
+        // Fetch the active record to inspect attachment and current fields
+        const current = await SELECT.one.from(Requests).where(keys) as any;
+
+        if (!current?.attachment) {
+            return req.error(400, 'ATTACHMENT_REQUIRED_BEFORE_SUBMIT', 'attachment');
+        }
+
+        // Run AI agent pipeline before changing status
+        const agentHub = await cds.connect.to('AI_Agent_Hub');
+
+        const analysis = await agentHub.send('analyzeDocument', {
+            requestId:   current.ID,
+            fileName:    current.fileName,
+            totalAmount: current.totalAmount,
+        }) as any;
+
+        const compliance = await agentHub.send('verifyCompliance', analysis) as any;
+
+        // Persist AI outputs together with the status transition
         await UPDATE(Requests)
             .set({
-                status_code: 'S',
-                approvalDate: new Date().toISOString(),
-                approver: currentUserId,
+                status_code:       'S',
+                approvalDate:      new Date().toISOString(),
+                approver:          currentUserId,
+                aiComplianceScore: compliance.score,
+                aiAuditNotes:      compliance.notes,
             })
             .where(keys);
 

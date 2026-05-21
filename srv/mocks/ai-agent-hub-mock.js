@@ -70,6 +70,61 @@ class AiAgentHubMock extends cds.Service {
       }
     })
 
+    // ── analyzeDocument ────────────────────────────────────────────────────
+    // Simulates extracting metadata from an uploaded document (PDF scan).
+    // Returns the extracted amount (mirrors totalAmount) and a short note.
+    this.on('analyzeDocument', req => {
+      const { requestId, fileName, totalAmount } = req.data
+
+      return {
+        requestId,
+        fileName:        fileName || 'unknown.pdf',
+        documentValid:   true,
+        extractedAmount: totalAmount,
+        notes:           `Document "${fileName || 'unknown.pdf'}" parsed successfully. ` +
+                         `Extracted amount: ${totalAmount}.`
+      }
+    })
+
+    // ── verifyCompliance ───────────────────────────────────────────────────
+    // Evaluates the analyzeDocument result against policy thresholds.
+    // Score tiers (based on extractedAmount):
+    //   < 1000        → 90  (APPROVED, low risk)
+    //   1000 – 5000   → 70  (APPROVED, moderate review)
+    //   > 5000        → 50  (REVIEW_REQUIRED, high value)
+    this.on('verifyCompliance', req => {
+      const { extractedAmount, fileName, documentValid } = req.data
+
+      let score, decision, notes
+
+      if (!documentValid) {
+        score    = 0
+        decision = 'REJECTED'
+        notes    = 'Document failed validation — cannot proceed.'
+      } else if (extractedAmount < 1000) {
+        score    = 90
+        decision = 'APPROVED'
+        notes    = `Low-value request (${extractedAmount}). Automatic approval.`
+      } else if (extractedAmount <= 5000) {
+        score    = 70
+        decision = 'APPROVED'
+        notes    = `Moderate-value request (${extractedAmount}). Standard review passed.`
+      } else {
+        score    = 50
+        decision = 'REVIEW_REQUIRED'
+        notes    = `High-value request (${extractedAmount}). Senior manager review required.`
+      }
+
+      return {
+        agent:    'ComplianceAgent',
+        fileName: fileName || 'unknown.pdf',
+        score,
+        decision,
+        notes,
+        verifiedAt: new Date().toISOString()
+      }
+    })
+
     await super.init()
   }
 }

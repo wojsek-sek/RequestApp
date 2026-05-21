@@ -27,6 +27,18 @@ entity Requests : cuid, managed, ApprovalTracking {
     // Composition: Items are deleted if the Request is deleted
     items        : Composition of many Items on items.request = $self;
     region : String(2); // np. 'EU', 'US'
+
+    // Attachment (uploaded PDF / document before submission)
+    @Core.MediaType             : mediaType
+    @Core.ContentDisposition.Filename: fileName
+    attachment        : LargeBinary;
+    @Core.IsMediaType
+    mediaType         : String;
+    fileName          : String;
+
+    // AI agent outputs written by submitRequest flow
+    aiComplianceScore : Integer;
+    aiAuditNotes      : String;
 }
 
 // ---------------------------------------------------------
