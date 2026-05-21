@@ -22,14 +22,31 @@ CAPMAP digitizes the capital expenditure approval workflow for organizations tha
 
 ## Architecture
 
-![Architecture diagram](docs/architecture.svg)
+```mermaid
+graph LR
+    Browser -->|HTTPS| AppRouter
+
+    subgraph BTP ["SAP BTP · Cloud Foundry"]
+        AppRouter["App Router\n@sap/approuter"] -->|static| HTML5["HTML5 Repository\nFiori Elements UI"]
+        AppRouter -->|/service/request/*| CAP["CAP Service\nNode.js · TypeScript"]
+        CAP --> HANA["HANA HDI\nhdi-shared"]
+        CAP --> XSUAA["XSUAA\nOAuth 2.0 · Roles"]
+        CAP --> Dest["Destination Svc\nS4HANA_DEST"]
+    end
+
+    CAP -->|Gemini API| Gemini["Google Gemini\nFlash 2.5"]
+    Dest --> S4["S/4HANA OData V2\nCostCenter · BusinessPartner · Products"]
+```
 
 **Request lifecycle:**
 
-```
-  [Draft] ──── submit ────▶ [Submitted] ──── approve ────▶ [Approved]
-                                 │
-                                 └──────── reject ─────▶  [Rejected]
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Draft
+    Draft --> Submitted : submit
+    Submitted --> Approved : approve
+    Submitted --> Rejected : reject
 ```
 
 ---
