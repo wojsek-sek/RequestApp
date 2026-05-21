@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="460" viewBox="0 0 800 460">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#666"/>
+    </marker>
+    <marker id="arr-dash" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#aaa"/>
+    </marker>
+  </defs>
+
+  <!-- Canvas background -->
+  <rect width="800" height="460" fill="#ffffff"/>
+
+  <!-- ── SAP BTP boundary ── -->
+  <rect x="140" y="22" width="530" height="325" rx="10"
+        fill="#eef5ff" stroke="#4a90d9" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="158" y="42" font-family="sans-serif" font-size="11" font-weight="bold" fill="#4a90d9">SAP BTP · Cloud Foundry</text>
+
+  <!-- ── Browser (external) ── -->
+  <rect x="14" y="148" width="108" height="52" rx="7"
+        fill="#f5f5f5" stroke="#757575" stroke-width="1.5"/>
+  <text x="68" y="170" font-family="sans-serif" font-size="13" font-weight="bold" fill="#333" text-anchor="middle">Browser</text>
+  <text x="68" y="187" font-family="sans-serif" font-size="10" fill="#777" text-anchor="middle">User</text>
+
+  <!-- ── App Router ── -->
+  <rect x="174" y="118" width="122" height="52" rx="7"
+        fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5"/>
+  <text x="235" y="140" font-family="sans-serif" font-size="13" font-weight="bold" fill="#1b5e20" text-anchor="middle">App Router</text>
+  <text x="235" y="157" font-family="sans-serif" font-size="10" fill="#388e3c" text-anchor="middle">@sap/approuter</text>
+
+  <!-- ── HTML5 Repository ── -->
+  <rect x="174" y="224" width="122" height="52" rx="7"
+        fill="#fff8e1" stroke="#f9a825" stroke-width="1.5"/>
+  <text x="235" y="244" font-family="sans-serif" font-size="11" font-weight="bold" fill="#e65100" text-anchor="middle">HTML5 Repository</text>
+  <text x="235" y="261" font-family="sans-serif" font-size="10" fill="#f57c00" text-anchor="middle">Fiori Elements UI</text>
+
+  <!-- ── CAP Service ── -->
+  <rect x="348" y="110" width="152" height="68" rx="7"
+        fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
+  <text x="424" y="133" font-family="sans-serif" font-size="13" font-weight="bold" fill="#0d47a1" text-anchor="middle">CAP Service</text>
+  <text x="424" y="150" font-family="sans-serif" font-size="10" fill="#1565c0" text-anchor="middle">Node.js · TypeScript</text>
+  <text x="424" y="166" font-family="sans-serif" font-size="10" fill="#1565c0" text-anchor="middle">OData 4 · Draft workflow</text>
+
+  <!-- ── HANA HDI ── -->
+  <rect x="554" y="66" width="112" height="44" rx="7"
+        fill="#e0f2f1" stroke="#00695c" stroke-width="1.5"/>
+  <text x="610" y="85" font-family="sans-serif" font-size="12" font-weight="bold" fill="#004d40" text-anchor="middle">HANA HDI</text>
+  <text x="610" y="101" font-family="sans-serif" font-size="10" fill="#00695c" text-anchor="middle">hdi-shared</text>
+
+  <!-- ── XSUAA ── -->
+  <rect x="554" y="158" width="112" height="44" rx="7"
+        fill="#f3e5f5" stroke="#6a1b9a" stroke-width="1.5"/>
+  <text x="610" y="177" font-family="sans-serif" font-size="12" font-weight="bold" fill="#4a148c" text-anchor="middle">XSUAA</text>
+  <text x="610" y="193" font-family="sans-serif" font-size="10" fill="#6a1b9a" text-anchor="middle">OAuth 2.0 · Roles</text>
+
+  <!-- ── Destination Service ── -->
+  <rect x="554" y="250" width="112" height="44" rx="7"
+        fill="#fff3e0" stroke="#e65100" stroke-width="1.5"/>
+  <text x="610" y="268" font-family="sans-serif" font-size="11" font-weight="bold" fill="#bf360c" text-anchor="middle">Destination Svc</text>
+  <text x="610" y="284" font-family="sans-serif" font-size="10" fill="#e65100" text-anchor="middle">S4HANA_DEST</text>
+
+  <!-- ── Google Gemini (external) ── -->
+  <rect x="348" y="386" width="152" height="52" rx="7"
+        fill="#fce4ec" stroke="#c62828" stroke-width="1.5"/>
+  <text x="424" y="408" font-family="sans-serif" font-size="13" font-weight="bold" fill="#b71c1c" text-anchor="middle">Google Gemini</text>
+  <text x="424" y="425" font-family="sans-serif" font-size="10" fill="#c62828" text-anchor="middle">AI Justification · Flash 2.5</text>
+
+  <!-- ── S/4HANA (external) ── -->
+  <rect x="688" y="108" width="100" height="182" rx="7"
+        fill="#e8eaf6" stroke="#283593" stroke-width="1.5"/>
+  <text x="738" y="130" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1a237e" text-anchor="middle">S/4HANA</text>
+  <text x="738" y="146" font-family="sans-serif" font-size="10" fill="#283593" text-anchor="middle">OData V2</text>
+  <line x1="693" y1="154" x2="783" y2="154" stroke="#3949ab" stroke-width="0.8"/>
+  <text x="738" y="170" font-family="sans-serif" font-size="10" fill="#3949ab" text-anchor="middle">CostCenter V2</text>
+  <line x1="693" y1="182" x2="783" y2="182" stroke="#3949ab" stroke-width="0.8"/>
+  <text x="738" y="197" font-family="sans-serif" font-size="10" fill="#3949ab" text-anchor="middle">BusinessPartner</text>
+  <line x1="693" y1="210" x2="783" y2="210" stroke="#3949ab" stroke-width="0.8"/>
+  <text x="738" y="227" font-family="sans-serif" font-size="10" fill="#3949ab" text-anchor="middle">Products</text>
+  <text x="738" y="243" font-family="sans-serif" font-size="10" fill="#5c6bc0" text-anchor="middle">API_PRODUCT_SRV</text>
+  <text x="738" y="278" font-family="sans-serif" font-size="9" fill="#7986cb" text-anchor="middle">sandbox · destination</text>
+
+  <!-- ═══════════════════════════════ -->
+  <!--            ARROWS              -->
+  <!-- ═══════════════════════════════ -->
+
+  <!-- Browser → App Router -->
+  <line x1="122" y1="168" x2="173" y2="147"
+        stroke="#666" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="128" y="151" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">HTTPS</text>
+
+  <!-- App Router ↓ HTML5 Repo (dashed = serves static) -->
+  <line x1="235" y1="170" x2="235" y2="223"
+        stroke="#aaa" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-dash)"/>
+  <text x="253" y="200" font-family="sans-serif" font-size="9" fill="#bbb">static</text>
+
+  <!-- App Router → CAP Service -->
+  <line x1="296" y1="144" x2="347" y2="144"
+        stroke="#666" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="321" y="138" font-family="sans-serif" font-size="9" fill="#999" text-anchor="middle">/service/*</text>
+
+  <!-- CAP Service → HANA (elbow up-right) -->
+  <path d="M 500 122 L 523 122 L 523 88 L 553 88"
+        fill="none" stroke="#666" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- CAP Service → XSUAA (diagonal) -->
+  <line x1="500" y1="144" x2="553" y2="176"
+        stroke="#666" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- CAP Service → Destination (elbow down-right) -->
+  <path d="M 500 162 L 528 162 L 528 272 L 553 272"
+        fill="none" stroke="#666" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- CAP Service → Gemini (vertical, crosses BTP boundary) -->
+  <line x1="424" y1="178" x2="424" y2="385"
+        stroke="#666" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="436" y="295" font-family="sans-serif" font-size="9" fill="#999">Gemini API</text>
+
+  <!-- Destination → S/4HANA -->
+  <line x1="666" y1="268" x2="687" y2="220"
+        stroke="#666" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- ── "External" badge on Gemini ── -->
+  <rect x="352" y="366" width="50" height="16" rx="4" fill="#ffcdd2"/>
+  <text x="377" y="378" font-family="sans-serif" font-size="9" font-weight="bold" fill="#b71c1c" text-anchor="middle">external</text>
+
+  <!-- ── "External" badge on S/4HANA ── -->
+  <rect x="692" y="88" width="50" height="16" rx="4" fill="#c5cae9"/>
+  <text x="717" y="100" font-family="sans-serif" font-size="9" font-weight="bold" fill="#283593" text-anchor="middle">external</text>
+
+</svg>

@@ -22,32 +22,7 @@ CAPMAP digitizes the capital expenditure approval workflow for organizations tha
 
 ## Architecture
 
-```
-  ┌──────────────────────────────────────────────────────────────┐
-  │  SAP BTP · Cloud Foundry                                     │
-  │                                                              │
-  │  ┌─────────────┐  static   ┌────────────────┐               │
-  │  │  HTML5 Repo │ ◀──────── │   App Router   │ ◀── Browser   │
-  │  │  (Fiori UI) │           │  (XSUAA · JWT) │               │
-  │  └─────────────┘           └───────┬────────┘               │
-  │                                    │ /service/request/*      │
-  │                            ┌───────▼──────────────────────┐  │
-  │                            │   CAP Service  (Node.js · TS) │  │
-  │                            │  ┌───────────┐  ┌──────────┐  │  │
-  │                            │  │ Handlers  │  │ HANA HDI │  │  │
-  │                            │  │ (TypeSc.) │  │   (DB)   │  │  │
-  │                            │  └───────────┘  └──────────┘  │──┼──▶ Google Gemini
-  │                            └──────────────┬────────────────┘  │
-  │                                           │ Destination Svc   │
-  └───────────────────────────────────────────┼───────────────────┘
-                                              │
-                              ┌───────────────▼───────────────┐
-                              │  S/4HANA  (OData V2)          │
-                              │  · API_COSTCENTER_V2           │
-                              │  · API_BUSINESS_PARTNER        │
-                              │  · API_PRODUCT_SRV             │
-                              └───────────────────────────────┘
-```
+![Architecture diagram](docs/architecture.svg)
 
 **Request lifecycle:**
 
