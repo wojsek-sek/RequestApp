@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "cap": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["node_modules/@cap-js/mcp-server/index.js"],
+      "env": {
+        "CDS_MCP_OFFLINE": "true"
+      }
+    },
+    "ui5": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["node_modules/@ui5/mcp-server/bin/ui5mcp.js"]
+    },
+    "fiori": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["node_modules/@sap-ux/fiori-mcp-server/dist/index.js", "fiori-mcp"]
+    }
+  }
+}

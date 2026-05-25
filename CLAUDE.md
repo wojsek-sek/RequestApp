@@ -164,7 +164,7 @@ API key: stored in `.env` as `GEMINI_API_KEY`.
 
 ## MCP Servers (AI coding assistance)
 
-Three SAP MCP servers configured in `.claude/settings.json` at project root.
+Three SAP MCP servers configured in `.mcp.json` at the project root (project scope — committed to git, shared with the team).
 
 | Server | Purpose |
 |---|---|

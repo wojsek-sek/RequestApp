@@ -52,14 +52,6 @@ service RequestService {
         }
         action rejectRequest() returns Requests;
 
-        @Common.SideEffects: {
-            TargetProperties: [
-                'status_code',
-                'approvalDate',
-                'approver'
-            ]
-        }
-        action submitRequest() returns Requests; 
         // Bound action: generate business justification for the current request draft
         @cds.odata.bindingparameter.name : '_it'
         @Core.OperationAvailable : { $edmJson: { $Eq: [{ $Path: '_it/IsActiveEntity' }, false] } } // Available only while editing (draft)

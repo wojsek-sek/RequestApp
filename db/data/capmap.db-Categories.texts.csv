@@ -1,5 +1,9 @@
 code,locale,name,descr
-IT,en,IT,Computers and peripherals
+IT,en,IT Equipment,Computers servers and peripherals
 FU,en,Furniture,Office furniture and fixtures
 MA,en,Machinery,Production and warehouse machinery
 SW,en,Software,Software licenses and subscriptions
+IT,pl,Sprzęt IT,Komputery serwery i urządzenia peryferyjne
+FU,pl,Meble,Meble biurowe i wyposażenie
+MA,pl,Maszyny,Maszyny produkcyjne i magazynowe
+SW,pl,Oprogramowanie,Licencje i subskrypcje oprogramowania

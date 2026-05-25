@@ -20,11 +20,11 @@ export default class RequestService extends cds.ApplicationService {
         // --- Requests ---
         this.before(['CREATE', 'UPDATE'], 'Requests', requestHandler.validateOnWrite);
         this.before('READ', 'Requests', requestHandler.injectStatusCodeColumn);
+        this.before('SAVE', 'Requests', requestHandler.beforeSave);
         this.before('SAVE', 'Requests', requestHandler.validateSupplierBeforeSave);
 
         this.on('approveRequest', 'Requests', requestHandler.approveRequest);
         this.on('rejectRequest', 'Requests', requestHandler.rejectRequest);
-        this.on('submitRequest', 'Requests', requestHandler.submitRequest);
         this.on('generateAIJustification', 'Requests.drafts', requestHandler.generateAIJustification);
 
         // --- Items (draft composition) ---

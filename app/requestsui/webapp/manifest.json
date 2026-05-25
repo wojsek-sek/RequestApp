@@ -191,6 +191,7 @@
           "name": "sap.fe.templates.ObjectPage",
           "options": {
             "settings": {
+              "enhanceI18n": "i18n/ObjectPage/Requests/i18n.properties",
               "editableHeaderContent": false,
               "contextPath": "/Requests",
               "controlConfiguration": {

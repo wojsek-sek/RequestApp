@@ -24,7 +24,7 @@ entity Requests : cuid, managed, ApprovalTracking {
     
     @Common.Text           : status.name
     @Common.TextArrangement: #TextOnly
-    status       : Association to Statuses default 'D' @title: 'Status';
+    status       : Association to Statuses default 'N' @title: 'Status';
     // Composition: Items are deleted if the Request is deleted
     items        : Composition of many Items on items.request = $self;
     region : String(2); // np. 'EU', 'US'
@@ -58,7 +58,7 @@ entity Items : cuid {
 // ---------------------------------------------------------
 entity Statuses : CodeList {
     key code : String(1) enum {
-        Draft     = 'D';
+        New       = 'N';
         Submitted = 'S';
         Approved  = 'A';
         Rejected  = 'R';
@@ -67,7 +67,7 @@ entity Statuses : CodeList {
         when 'A' then 3 // Green (Approved)
         when 'R' then 1 // Red (Rejected)
         when 'S' then 2 // Yellow (Submitted)
-        else 0          // Grey (Draft / Unknown)
+        else 0          // Grey (New / Unknown)
     end @title: 'Criticality';
 }
 

@@ -97,15 +97,15 @@ annotate service.Requests with @(
             Target : '@UI.FieldGroup#JustificationGroup',
         },
         {
-            // 5 — hidden while Draft; visible after Submit / Approve / Reject
+            // 5 — hidden while New; visible after Submit / Approve / Reject
             $Type : 'UI.ReferenceFacet',
             ID    : 'AIAuditResultsFacet',
             Label : '{i18n>AuditScore}',
             Target : '@UI.FieldGroup#AIAuditResultsGroup',
-            ![@UI.Hidden] : {$edmJson: {$Eq: [{$Path: 'status_code'}, 'D']}},
+            ![@UI.Hidden] : {$edmJson: {$Eq: [{$Path: 'status_code'}, 'N']}},
         },
         {
-            // 3 — always visible; add/delete locked when not Draft by entity-level UI.UpdateHidden
+            // 3 — always visible; add/delete locked when not New by entity-level UI.UpdateHidden
             $Type : 'UI.CollectionFacet',
             ID    : 'AttachmentsFacet',
             Label : '{i18n>Attachments}',
@@ -214,7 +214,6 @@ annotate service.Requests with @(
     ],
 
     UI.Identification: [
-            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.submitRequest', Label: '{i18n>Submit}', Criticality: 3, @UI.Hidden: {$edmJson: {$Ne: [{$Path: 'status_code'}, 'D']}}},
             { $Type: 'UI.DataFieldForAction', Action: 'RequestService.approveRequest', Label: '{i18n>Approve}', Criticality: 3, @UI.Hidden: {$edmJson: {$Ne: [{$Path: 'status_code'}, 'S']}}},
             { $Type: 'UI.DataFieldForAction', Action: 'RequestService.rejectRequest', Label: '{i18n>Reject}', Criticality: 1, @UI.Hidden: {$edmJson: {$Ne: [{$Path: 'status_code'}, 'S']}} },
             { 
@@ -225,8 +224,8 @@ annotate service.Requests with @(
             }
     ],
 
-    UI.UpdateHidden : {$edmJson: {$Ne: [{$Path: 'status_code'}, 'D']}},
-    UI.DeleteHidden : {$edmJson: {$Ne: [{$Path: 'status_code'}, 'D']}},
+    UI.UpdateHidden : {$edmJson: {$Ne: [{$Path: 'status_code'}, 'N']}},
+    UI.DeleteHidden : {$edmJson: {$Ne: [{$Path: 'status_code'}, 'N']}},
     
 );
 

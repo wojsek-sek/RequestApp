@@ -28,6 +28,8 @@ interface S4SupplierData {
 /** Requests entity: validation, bound actions, draft-save supplier check. */
 export class RequestHandler {
 
+    constructor() {}
+
     /** Title length, justification for high amounts, positive total. */
     validateOnWrite = async (req: cds.Request) => {
         const { totalAmount, justification, title } = req.data as Partial<Request>;
@@ -93,46 +95,56 @@ export class RequestHandler {
         return SELECT.one.from(Request).where({ ID });
     };
 
-    submitRequest = async (req: cds.Request) => {
-        // Extract only the real DB key — req.params[0] for draft-enabled entities also
-        // contains IsActiveEntity which is a virtual OData property, not a DB column.
-        // Passing it to WHERE causes a runtime error.
-        const { ID } = req.params[0] as { ID: string };
-        const currentUserId = req.user.id;
+    /** Runs on draft activation (Fiori "Save" button). Validates, checks attachments, runs AI compliance, and sets status. */
+    beforeSave = async (req: cds.Request) => {
+        const data      = req.data as Partial<Request>;
+        const requestId = data.ID;
+        if (!requestId) return;
 
-        const current = await SELECT.one.from(Request).where({ ID }) as Request | null;
-        if (!current?.ID) return req.error(404, 'REQUEST_NOT_FOUND');
-
-        // Require at least one attachment — query via service entity, not the abstract aspect
-        const attachments = await SELECT
-            .from(Requests.attachments)
-            .where({ up__ID: ID }) as Requests.attachment[];
-
-        if (!attachments.length) {
-            return req.error(400, 'ATTACHMENT_REQUIRED');
+        // 1. Validate title and high-value justification threshold
+        if (data.title && data.title.length < 5) {
+            return req.error(400, 'TITLE_TOO_SHORT', 'title');
+        }
+        if (((data.totalAmount ?? 0) as number) > 5000 && !data.justification) {
+            return req.error(400, 'Justification required for amounts over 5000');
         }
 
-        const agentHub = await cds.connect.to('AI_Agent_Hub');
+        // 2. Require at least one attachment before activating the draft
+        const attachments = await SELECT.from(Requests.attachments.drafts)
+            .where({ up__ID: requestId }) as Requests.attachment[];
+        if (!attachments.length) {
+            return req.error(400, 'At least one attachment is required before submitting');
+        }
 
-        const analysis = await agentHub.send('analyzeDocument', {
-            requestId:   current.ID,
-            fileName:    attachments[0].filename,
-            totalAmount: current.totalAmount,
-        }) as AnalysisResult;
+        // 3. AI compliance check — graceful degradation if hub is unavailable
+        try {
+            const agentHub = await cds.connect.to('AI_Agent_Hub');
 
-        const compliance = await agentHub.send('verifyCompliance', analysis) as ComplianceResult;
+            const analysis = await agentHub.send('analyzeDocument', {
+                requestId,
+                fileName:    (attachments[0] as any).filename,
+                totalAmount: data.totalAmount,
+            }) as AnalysisResult;
 
-        await UPDATE(Requests)
-            .set({
-                status_code:       'S',
-                approvalDate:      new Date().toISOString(),
-                approver:          currentUserId,
-                aiComplianceScore: compliance.score,
-                aiAuditNotes:      compliance.notes,
-            })
-            .where({ ID });
+            const compliance = await agentHub.send('verifyCompliance', analysis) as ComplianceResult;
 
-        return SELECT.one.from(Request).where({ ID });
+            // 4. Write AI results and derived status into the draft activation payload
+            (req.data as any).aiComplianceScore = compliance.score;
+            (req.data as any).aiAuditNotes      = compliance.notes;
+
+            const decision = compliance.decision?.toUpperCase();
+            if (decision === 'APPROVED') {
+                (req.data as any).status_code = 'A';
+            } else if (decision === 'REJECTED') {
+                (req.data as any).status_code = 'R';
+            } else {
+                (req.data as any).status_code = 'S';
+            }
+        } catch (e: unknown) {
+            console.warn('[AI] Agent Hub unavailable, proceeding without compliance check:',
+                (e as { message?: string })?.message ?? String(e));
+            (req.data as any).status_code = 'S';
+        }
     };
 
     /** Supplier existence and block check against S/4HANA before activating draft. */
@@ -171,7 +183,7 @@ export class RequestHandler {
                 return req.error(400, 'SUPPLIER_BLOCKED', 'supplierId', [supplierLabel]);
             }
 
-            req.info('SUPPLIER_SAFE', undefined, [supplierLabel]);
+            //req.info('SUPPLIER_SAFE', undefined, [supplierLabel]);
         } catch (error: unknown) {
             const e = error as { message?: string; response?: { status?: number } };
 
