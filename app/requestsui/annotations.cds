@@ -34,7 +34,14 @@ annotate service.Requests with @(
                 Value : status_code,
                 Criticality : status.criticality,
                 CriticalityRepresentation : #WithoutIcon
-            }
+            },
+            {
+                $Type : 'UI.DataField',
+                Value : rejectReason,
+                Label : '{i18n>RejectReason}',
+                // Only visible when status is Rejected
+                ![@UI.Hidden]: { $edmJson: { $Ne: [{ $Path: 'status_code' }, 'R'] } },
+            },
         ],
     },
     UI.FieldGroup #JustificationGroup : {
@@ -56,11 +63,21 @@ annotate service.Requests with @(
     UI.DataPoint #AIScoreDataPoint : {
         Value : aiComplianceScore,
         Title : 'AI Compliance Score',
-        CriticalityCalculation : {
-            ImprovementDirection  : #Maximize,
-            DeviationRangeLowValue  : 50,
-            ToleranceRangeLowValue  : 80,
-        },
+        Criticality: {
+        $edmJson: {
+            $If: [
+                { $Ge: [{ $Path: 'aiComplianceScore' }, 80] },
+                3, // Positive (Green)
+                {
+                    $If: [
+                        { $Lt: [{ $Path: 'aiComplianceScore' }, 50] },
+                        1, // Negative (Red)
+                        2  // Critical/Warning (Orange)
+                    ]
+                }
+                ]   
+            }
+        }
     },
 
     // AI Audit Results — hidden while Draft, shown after submission.
@@ -199,7 +216,7 @@ annotate service.Requests with @(
         Title : '{i18n>TotalAmount}',
     },
 
-    // Header facets (status + amount)
+    // Header facets (status + amount + AI compliance score)
     UI.HeaderFacets : [
         {
             $Type  : 'UI.ReferenceFacet',
@@ -210,12 +227,22 @@ annotate service.Requests with @(
             $Type  : 'UI.ReferenceFacet',
             ID     : 'AmountFacet',
             Target : '@UI.DataPoint#TotalAmountDataPoint',
+        },
+        // Show AI compliance score in header only after submission (not while New/Draft)
+        {
+            $Type  : 'UI.ReferenceFacet',
+            ID     : 'AIScoreFacet',
+            Target : '@UI.DataPoint#AIScoreDataPoint',
+            ![@UI.Hidden]: { $edmJson: { $Eq: [{ $Path: 'status_code' }, 'N'] } },
         }
     ],
 
     UI.Identification: [
-            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.approveRequest', Label: '{i18n>Approve}', Criticality: 3, @UI.Hidden: {$edmJson: {$Ne: [{$Path: 'status_code'}, 'S']}}},
-            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.rejectRequest', Label: '{i18n>Reject}', Criticality: 1, @UI.Hidden: {$edmJson: {$Ne: [{$Path: 'status_code'}, 'S']}} },
+            // Approve/Reject: visible only when isApprover=true (RegionalManager, not the creator, status=S)
+            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.approveRequest', Label: '{i18n>Approve}', Criticality: 3,
+              ![@UI.Hidden]: { $edmJson: { $Not: [{ $Path: 'isApprover' }] } } },
+            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.rejectRequest',  Label: '{i18n>Reject}',  Criticality: 1,
+              ![@UI.Hidden]: { $edmJson: { $Not: [{ $Path: 'isApprover' }] } } },
             { 
                 $Type: 'UI.DataFieldForAction', 
                 Action: 'RequestService.generateAIJustification', 
@@ -224,8 +251,12 @@ annotate service.Requests with @(
             }
     ],
 
-    UI.UpdateHidden : {$edmJson: {$Ne: [{$Path: 'status_code'}, 'N']}},
-    UI.DeleteHidden : {$edmJson: {$Ne: [{$Path: 'status_code'}, 'N']}},
+    // Edit/Delete hidden unless isEditable = true (RegionalManager + status N).
+    // This covers two cases in one field:
+    //   - Viewer (readonly-user): isEditable is always false → buttons never appear
+    //   - RegionalManager viewing a Submitted/Approved/Rejected request: status ≠ N → false
+    UI.UpdateHidden : { $edmJson: { $Not: [{ $Path: 'isEditable' }] } },
+    UI.DeleteHidden : { $edmJson: { $Not: [{ $Path: 'isEditable' }] } },
     
 );
 
@@ -243,6 +274,7 @@ annotate service.Requests with {
     approver    @readonly;
     approvalDate @readonly;
     totalAmount @readonly;
+    rejectReason @readonly;
 
     justification @UI.MultiLineText: true;
 
@@ -504,13 +536,12 @@ annotate service.Items with @(Common.SideEffects #RecalculateItemTotalForItem: {
 });
 
 annotate RequestService.Requests with actions {
-    
+
     generateAIJustification @(
         Common.SideEffects #RefreshAIJustification: {
             TargetProperties: ['_it/justification'],
         }
     );
-    
 };
 
 annotate RequestService.Requests with @(
@@ -583,10 +614,11 @@ annotate RequestService.Requests with @(
             Role: #Category
         }]
     },
-    // Wariant prezentacji dla filtra statusu
+    // Presentation variant for the Status visual filter.
+    // MaxItems: show all 5 statuses (N/S/A/R/C) — default is 3 bars without this setting.
     UI.PresentationVariant #VFStatusPV: {
-        SortOrder: [{
-            Property: status_code,
+        SortOrder : [{
+            Property  : status_code,
             Descending: true
         }],
         Visualizations: ['@UI.Chart#VFChartStatus']
@@ -606,10 +638,12 @@ annotate RequestService.Requests with @(
             Role: #Category
         }]
     },
-    // Wariant prezentacji dla filtra Cost Center
+    // Presentation variant for the Cost Center visual filter.
+    // MaxItems: show up to 20 cost centers — default is 3 bars without this setting.
+    // SortOrder Descending = show highest-spend cost centers first.
     UI.PresentationVariant #VFCostCenterPV: {
-        SortOrder: [{
-            Property: costCenter,
+        SortOrder : [{
+            Property  : costCenter,
             Descending: true
         }],
         Visualizations: ['@UI.Chart#VFChartCostCenter']

@@ -65,6 +65,36 @@ export class RequestHandler {
         }
     };
 
+    /**
+     * Compute virtual display-control fields for each request row:
+     *
+     * isApprover — drives Approve/Reject button visibility.
+     *   true when ALL of:
+     *     1. Current user has the 'RegionalManager' role
+     *     2. Current user is NOT the creator of the request (Segregation of Duties)
+     *     3. Request status is 'S' (Submitted) — ready for approval
+     *
+     * isEditable — drives Edit/Delete button visibility.
+     *   true when ALL of:
+     *     1. Current user has the 'RegionalManager' role (Viewers are read-only)
+     *     2. Request status is 'N' (New/Draft) — cannot edit submitted/approved/rejected requests
+     */
+    afterRead = (results: Request | Request[], req: cds.Request) => {
+        const user = req.user;
+        const isManager = user.is('RegionalManager');
+        const rows = Array.isArray(results) ? results : [results];
+        for (const row of rows) {
+            const statusCode = (row as any).status_code;
+            (row as any).isApprover =
+                isManager &&
+                row.createdBy !== user.id &&
+                statusCode === 'S';
+            (row as any).isEditable =
+                isManager &&
+                statusCode === 'N';
+        }
+    };
+
     approveRequest = async (req: cds.Request) => {
         const { ID } = req.params[0] as { ID: string };
         const currentUserId = req.user.id;
@@ -82,6 +112,7 @@ export class RequestHandler {
 
     rejectRequest = async (req: cds.Request) => {
         const { ID } = req.params[0] as { ID: string };
+        const { reason } = req.data as { reason?: string };
         const currentUserId = req.user.id;
 
         await UPDATE(Requests)
@@ -89,6 +120,7 @@ export class RequestHandler {
                 status_code:  'R',
                 approvalDate: new Date().toISOString(),
                 approver:     currentUserId,
+                rejectReason: reason ?? null,
             })
             .where({ ID });
 
@@ -201,6 +233,21 @@ export class RequestHandler {
                 req.error(500, 'CLOUD_SDK_ERROR');
             }
         }
+    };
+
+    /**
+     * Soft delete: instead of physically removing the row, set status to 'C' (Cancelled).
+     * This preserves the audit trail. The actual DELETE is rejected via req.reply().
+     */
+    softDelete = async (req: cds.Request) => {
+        const { ID } = req.params[0] as { ID: string };
+
+        await UPDATE(Requests)
+            .set({ status_code: 'C' })
+            .where({ ID });
+
+        // Return empty object to satisfy OData 204 No Content expectation
+        return req.reply({});
     };
 
     /** Generate business justification via Gemini and persist on the request draft. */

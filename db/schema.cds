@@ -35,6 +35,7 @@ entity Requests : cuid, managed, ApprovalTracking {
     // AI agent outputs written by submitRequest flow
     aiComplianceScore : Integer;
     aiAuditNotes      : String;
+    rejectReason      : String(500) @title: 'Rejection Reason';
 }
 
 // ---------------------------------------------------------
@@ -62,11 +63,13 @@ entity Statuses : CodeList {
         Submitted = 'S';
         Approved  = 'A';
         Rejected  = 'R';
+        Cancelled = 'C';   // Soft-deleted: row is preserved for audit trail
     };
     criticality : Integer = case code
         when 'A' then 3 // Green (Approved)
         when 'R' then 1 // Red (Rejected)
         when 'S' then 2 // Yellow (Submitted)
+        when 'C' then 0 // Grey (Cancelled)
         else 0          // Grey (New / Unknown)
     end @title: 'Criticality';
 }

@@ -31,26 +31,22 @@ service RequestService {
     @odata.draft.enabled
     entity Requests as projection on my.Requests {
         status.name as statusText : String,
+        virtual isApprover : Boolean,   // SoD: true when user can approve/reject (RegionalManager, not creator, status=S)
+        virtual isEditable : Boolean,   // true when user has RegionalManager role AND status is N (Draft)
         *
     } actions {
         @Common.IsActionCritical: true
         @Common.SideEffects: {
-            TargetProperties: [
-                'status_code',
-                'approvalDate',
-                'approver'
-            ]
+            TargetProperties: ['status_code', 'approvalDate', 'approver', 'isApprover'],
+            TargetEntities  : ['']
         }
         action approveRequest() returns Requests;
-        //@Core.OperationAvailable: in.isActionable
+
         @Common.SideEffects: {
-            TargetProperties: [
-                'status_code',
-                'approvalDate',
-                'approver'
-            ]
+            TargetProperties: ['status_code', 'approvalDate', 'approver', 'rejectReason', 'isApprover'],
+            TargetEntities  : ['']
         }
-        action rejectRequest() returns Requests;
+        action rejectRequest(reason : String) returns Requests;
 
         // Bound action: generate business justification for the current request draft
         @cds.odata.bindingparameter.name : '_it'
