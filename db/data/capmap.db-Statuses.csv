@@ -3,3 +3,4 @@ N,New,Request has not yet been submitted
 S,Submitted,Request has been submitted for approval
 A,Approved,Request has been approved
 R,Rejected,Request has been rejected
+C,Cancelled,Request has been cancelled

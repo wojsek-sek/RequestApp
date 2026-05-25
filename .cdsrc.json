@@ -4,6 +4,12 @@
         "db": "hana",
         "auth": "xsuaa"
       },
+      "db": {
+        "kind": "sqlite",
+        "credentials": {
+          "url": "db.sqlite"
+        }
+      },
       "auth": {
         "users": {
           "admin-eu": {

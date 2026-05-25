@@ -7,3 +7,5 @@ N,pl,Nowy,Wniosek nie został jeszcze złożony
 S,pl,Złożony,Wniosek został złożony do zatwierdzenia
 A,pl,Zatwierdzony,Wniosek został zatwierdzony
 R,pl,Odrzucony,Wniosek został odrzucony
+C,en,Cancelled,Request has been cancelled
+C,pl,Anulowany,Wniosek został anulowany

@@ -2,7 +2,7 @@
 
 ## What this project is
 
-B2B **CapEx Request Management** app built on SAP CAP (Node.js + TypeScript) with a Fiori Elements frontend. Users create capital expenditure requests with line items, route them through a Draft→Submit→Approve/Reject workflow, and can generate AI-written business justifications via Google Gemini. Deployed on SAP BTP (Cloud Foundry) with XSUAA auth, HANA DB, and an app-router entry point.
+B2B **CapEx Request Management** app built on SAP CAP (Node.js + TypeScript) with a Fiori Elements frontend. Users create capital expenditure requests with line items, route them through a New→Submit→Approve/Reject workflow (with Cancel and Withdraw transitions), and can generate AI-written business justifications via Google Gemini. Deployed on SAP BTP (Cloud Foundry) with XSUAA auth, HANA DB, and an app-router entry point.
 
 ---
 
@@ -58,10 +58,11 @@ CAPMAP/
 **Requests** (header entity, `cuid` + `managed` + `ApprovalTracking`):
 - `title`, `totalAmount` (Decimal), `currency` (default USD)
 - `costCenter` (ref to S/4 cost center), `region` (row-level security key)
-- `status` → `Statuses` code-list (D=Draft, S=Submitted, A=Approved, R=Rejected)
+- `status` → `Statuses` code-list (N=New/Draft, S=Submitted, A=Approved, R=Rejected, C=Cancelled)
 - `approver`, `approvalDate`, `justification` (from `ApprovalTracking` aspect)
-- `aiComplianceScore` (Integer), `aiAuditNotes` (String) — AI document analysis results
-- `attachments` — `Composition of many Attachments` (from `@cap-js/attachments` plugin)
+- `rejectReason`, `cancelReason` (String(500)) — set by `rejectRequest` / `cancelRequest` actions
+- `aiComplianceScore` (Integer), `aiAuditNotes` (String) — AI document analysis results on submit
+- `attachments` — `Composition of many Attachments` (from `@cap-js/attachments` plugin); at least one required before `submitRequest`
 - Composition: `items` (cascade-delete on header delete)
 
 **Attachments** (managed by `@cap-js/attachments` plugin):
@@ -74,7 +75,7 @@ CAPMAP/
 - `productId`, `description`, `quantity`, `price`, `itemTotal` (calculated)
 - `category` → `Categories` code-list, `supplierId` (S/4 Business Partner ref)
 
-**Code-lists**: `Statuses` (with criticality 0–3), `Categories` (IT/Furniture/Machinery/Software)
+**Code-lists**: `Statuses` — N New · S Submitted · A Approved · R Rejected · C Cancelled (criticality via CDS `case` in schema). `Categories` — IT · FU · MA · SW.
 
 ---
 
@@ -94,16 +95,18 @@ Key projections and restrictions:
 **OData aggregation** enabled: groupby (status, costCenter, currency), sum/min/max on totalAmount, countdistinct on ID. Powers the analytics charts.
 
 **Bound actions on Requests**:
-- `submitRequest()` — validates attachment present, runs AI compliance check, sets status=S
-- `approveRequest()` — sets status=A, records approver + date
-- `rejectRequest()` — sets status=R, records approver + date
-- `generateAIJustification()` — calls Gemini, persists result to `justification`
+- `submitRequest()` — validates attachment present, runs AI compliance check, sets N→S (AI may set A or R directly)
+- `approveRequest()` — sets status=A, records approver + date (SoD: must be RegionalManager and not the creator)
+- `rejectRequest(reason)` — sets status=R, records approver + date + rejectReason
+- `cancelRequest(reason)` — allowed from N or S; sets status=C, records cancelReason
+- `withdrawRequest()` — allowed from S only; resets N, clears approver/approvalDate/AI results
+- `generateAIJustification()` — draft only; calls Gemini, persists result to `justification`
 
 ---
 
 ## Handler Patterns
 
-All handlers registered in `MainService.ts` via `cds.on('bootstrap')`. Pattern:
+All handlers registered in `MainService.ts` inside `init()`. Use **arrow-function class fields** — they are automatically bound to `this`, no `.bind()` needed:
 
 ```typescript
 // srv/handlers/SomeHandler.ts
@@ -111,14 +114,14 @@ import cds from '@sap/cds'
 import { Requests } from '#cds-models/RequestService'
 
 export class SomeHandler {
-  constructor(private srv: cds.ApplicationService, private externalApi?: cds.RemoteService) {}
-
-  register() {
-    this.srv.before('READ', Requests, this.beforeRead.bind(this))
-    this.srv.on('READ', Requests, this.onRead.bind(this))
-    this.srv.after('READ', Requests, this.afterRead.bind(this))
-  }
+    validate = (req: cds.Request) => { /* ... */ }
+    enrich   = (results: Requests[]) => { /* ... */ }
 }
+
+// srv/MainService.ts — inside init():
+const h = new SomeHandler()
+this.before('CREATE', 'Requests', h.validate)
+this.after ('READ',   'Requests', h.enrich)
 ```
 
 **Key business rules in `RequestHandler.ts`**:
@@ -236,7 +239,7 @@ import { executeHttpRequest } from '@sap-cloud-sdk/http-client'
 - Header facets: Status DataPoint + TotalAmount DataPoint
 - Object page facets: GeneralInfo, Justification (multiline), AI Audit Results, Attachments (plugin), Items table
 - Attachments facet targets `attachments/@UI.LineItem` — provided automatically by `@cap-js/attachments`, no manual annotation needed
-- Action visibility: Submit (status=D), Approve/Reject (status=S)
+- Action visibility: Submit (status=N), Approve/Reject (isApprover=true), Cancel (N or S), Withdraw (S)
 - `generateAIJustification` has `@Common.SideEffects` → refreshes justification field
 - Charts: RequestsByStatus (donut), AmountByCostCenter (column)
 - Visual filters on List Report: Status (bar), CostCenter (bar)
@@ -279,8 +282,11 @@ cds watch
 # Open with Fiori app auto-launch
 npm run watch-requestsui
 
+# Seed test PDF attachment on every request (dev data, idempotent)
+npm run seed:attachments
+
 # Regenerate TypeScript types after CDS model changes
-cds-typer '*' --outputDirectory @cds-models
+node node_modules/@cap-js/cds-typer/lib/cli.js "*" --outputDirectory @cds-models
 
 # Production build
 mbt build
@@ -311,3 +317,6 @@ cf deploy mta_archives/CAPMAP_1.0.0.mtar
 - **Localization**: Both CostCenter and Product handlers parse user locale from `cds.context.user.locale` (format: `en_US`). First 2 chars = language code for S/4 text lookups.
 - **mbt build** requires the `mbt` npm package and Cloud Foundry CLI + `cf deploy` plugin.
 - **MCP servers** (Windows): restart Claude Code from `C:\Dev\CAPMAP` if cap/ui5/fiori tools are missing. Do not use `npx` — use `node` with direct script paths.
+- **Virtual fields in `$select`**: Fiori builds `$select` from rendered columns only. Virtual fields (`isEditable`, `isApprover`) used purely in annotation expressions are never added by Fiori. The `injectRequiredColumns` method (registered as `before('READ', 'Requests')`) forces them into every explicit `$select` so `afterRead` values actually reach the client.
+- **`UI.UpdateHidden` with dynamic `$Path`**: Do NOT annotate the entity with `UI.UpdateHidden: { $edmJson: { $Path: '...' } }`. In the List Report the expression is evaluated once at entity-type level (no row instance) → `status_code` resolves to `null` → `$Ne(null,'N') = true` → Edit button permanently hidden for all rows. Keep `UI.UpdateHidden` unset; use `beforeSave` as the server-side status gate instead.
+- **`beforeSave` is the status gate**: Since `UI.UpdateHidden` is not set, the `before('SAVE', 'Requests')` handler is the authoritative guard that prevents non-N requests from being saved via the edit flow. It reads the active entity's `status_code` and rejects with `EDIT_NOT_ALLOWED_FOR_CURRENT_STATUS` if it's not N.

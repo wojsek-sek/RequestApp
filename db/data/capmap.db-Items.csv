@@ -1,28 +1,34 @@
 ID,request_ID,productId,description,quantity,price,itemTotal,category_code,supplierId
-1f3c2a11-0c2b-4f7d-8f2a-9d0e1c2b3a4f,0c2cfc26-2ff8-4c44-9a24-4a0f2a3f3b5a,LAPTOP-T14-G4,ThinkPad T14 Gen 4 (16GB RAM 512GB SSD),25,1200.00,30000.00,IT,1000000001
-2a4b5c6d-7e8f-4a1b-9c2d-3e4f5a6b7c8d,0c2cfc26-2ff8-4c44-9a24-4a0f2a3f3b5a,DOCK-USBC-PRO,USB-C Pro Docking Station,25,250.00,6250.00,IT,1000000001
-3b2a1c0d-9e8f-4d3c-8b7a-6f5e4d3c2b1a,2a49c7e5-4f31-4d1e-bc93-5edc7261f4e9,SVC-CONV-ANN,Annual Conveyor Maintenance Contract,1,12500.00,12500.00,MA,1000000002
-4c3d2e1f-0a9b-4c8d-9e7f-6a5b4c3d2e1f,2a49c7e5-4f31-4d1e-bc93-5edc7261f4e9,PART-ROLLER-32,Replacement Belt Rollers (32mm),4,950.00,3800.00,MA,1000000002
-5d4e3f2a-1b0c-4d9e-8f7a-6b5c4d3e2f1a,2a49c7e5-4f31-4d1e-bc93-5edc7261f4e9,SVC-EMERG-CALL,Emergency Call-Out Package,1,2000.00,2000.00,MA,1000000002
-6e5f4a3b-2c1d-4e0f-9a8b-7c6d5e4f3a2b,6f40978e-bb9a-4b63-8e07-19b0c8e2f019,SW-ACAD-LT-ANN,AutoCAD LT Annual License,40,750.00,30000.00,SW,1000000003
-7f6a5b4c-3d2e-4f1a-8b9c-0d1e2f3a4b5c,6f40978e-bb9a-4b63-8e07-19b0c8e2f019,SVC-CAD-TRAIN,CAD Software Training Workshop (per seat),5,400.00,2000.00,SW,1000000003
-8a7b6c5d-4e3f-4a2b-9c0d-1e2f3a4b5c6d,7c7e11b8-0f33-45d8-9cc8-2ef0a3b6f7fd,FU-CHAIR-ERGO,Ergonomic Office Chair (Class 4 Gas Lift),50,180.00,9000.00,FU,1000000004
-9b8c7d6e-5f4a-4b3c-8d1e-2f3a4b5c6d7e,7c7e11b8-0f33-45d8-9cc8-2ef0a3b6f7fd,SVC-DELIVER-ASM,Delivery and Assembly Service,1,500.00,500.00,FU,1000000004
-0c9d8e7f-6a5b-4c4d-9e2f-3a4b5c6d7e8f,9a8d30c0-0b1b-4d34-b7a7-e9c9a5a6d4e2,SRV-PWREDGE-R750,Dell PowerEdge R750 (2x Xeon 256GB RAM),4,8500.00,34000.00,IT,1000000001
-1d0e9f8a-7b6c-4d5e-8f3a-4b5c6d7e8f9a,9a8d30c0-0b1b-4d34-b7a7-e9c9a5a6d4e2,RACK-42U-NET,42U Network Rack Enclosure,2,2200.00,4400.00,IT,1000000001
-2e1f0a9b-8c7d-4e6f-9a4b-5c6d7e8f9a0b,9a8d30c0-0b1b-4d34-b7a7-e9c9a5a6d4e2,RACK-PDU-MGMT,Managed PDU + Cable Management Kit,2,800.00,1600.00,IT,1000000001
-3f2a1b0c-9d8e-4f7a-8b5c-6d7e8f9a0b1c,ad6d98d7-0f7e-4aa0-9a0a-34cbe2a56d7b,SENS-OPT-PROX,Optical Proximity Sensor (10mm range),30,280.00,8400.00,MA,1000000002
-4a3b2c1d-0e9f-4a8b-9c6d-7e8f9a0b1c2d,ad6d98d7-0f7e-4aa0-9a0a-34cbe2a56d7b,PART-SENS-BRK,Sensor Mounting Bracket Assembly,10,65.00,650.00,MA,1000000002
-5b4c3d2e-1f0a-4b9c-8d7e-9f0a1b2c3d4e,ad6d98d7-0f7e-4aa0-9a0a-34cbe2a56d7b,SVC-INST-CALIB,Installation and Calibration Service,1,2800.00,2800.00,MA,1000000002
-6c5d4e3f-2a1b-4c0d-9e8f-0a1b2c3d4e5f,b7d6a4cf-6b8a-4c07-9f6e-7b2b7b0a0d55,CLOUD-S3-1TB,Cloud Backup Storage (1TB/month),12,280.00,3360.00,SW,1000000003
-7d6e5f4a-3b2c-4d1e-8f9a-1b2c3d4e5f6a,b7d6a4cf-6b8a-4c07-9f6e-7b2b7b0a0d55,SVC-BACKUP-MGD,Managed Backup Service (monthly),12,500.00,6000.00,SW,1000000003
-8e7f6a5b-4c3d-4e2f-9a0b-2c3d4e5f6a7b,b7d6a4cf-6b8a-4c07-9f6e-7b2b7b0a0d55,SVC-DR-MIGRATE,Data Migration and DR Testing Package,1,2640.00,2640.00,SW,1000000003
-9f8a7b6c-5d4e-4f3a-8b1c-3d4e5f6a7b8c,c3b0a8d4-4c0b-4e35-9df7-1cc3a2f6a4b1,FORK-ELEC-3T,Electric Forklift 3T - 3 Year Lease,2,15000.00,30000.00,MA,1000000002
-0a9b8c7d-6e5f-4a4b-9c2d-4e5f6a7b8c9d,c3b0a8d4-4c0b-4e35-9df7-1cc3a2f6a4b1,SVC-FORK-MAINT,Annual Maintenance and Insurance Package,2,2000.00,4000.00,MA,1000000002
-aa1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d,c3b0a8d4-4c0b-4e35-9df7-1cc3a2f6a4b1,SVC-FORK-TRAIN,Forklift Operator Safety Certification,1,2000.00,2000.00,MA,1000000002
-bb2c3d4e-5f6a-4b7c-9d8e-9f0a1b2c3d4e,d28d5a7b-2a58-4fbb-8d6a-9a2f1f4e6c3d,DISP-86-INTER,86-inch Interactive Display Panel,3,3500.00,10500.00,IT,1000000001
-cc3d4e5f-6a7b-4c8d-9e0f-0a1b2c3d4e5f,d28d5a7b-2a58-4fbb-8d6a-9a2f1f4e6c3d,CAM-CONF-BAR,Video Conferencing Camera Bar (4K),3,1200.00,3600.00,IT,1000000001
-dd4e5f6a-7b8c-4d9e-8f1a-1b2c3d4e5f6a,d28d5a7b-2a58-4fbb-8d6a-9a2f1f4e6c3d,SYS-AV-CTRL,AV Control System and Structured Cabling,1,1400.00,1400.00,IT,1000000001
-ee5f6a7b-8c9d-4e0f-9a2b-2c3d4e5f6a7b,f1c4b2e9-9d0a-4c7f-9b0d-2a1b3c4d5e6f,TOOL-CNC-HOLD,CNC Precision Tool Holders Set (50 pcs),1,45000.00,45000.00,MA,1000000002
-ff6a7b8c-9d0e-4f1a-8b3c-3d4e5f6a7b8c,f1c4b2e9-9d0a-4c7f-9b0d-2a1b3c4d5e6f,TOOL-INSERT-BLK,Carbide Cutting Inserts - Bulk Pack,1,38000.00,38000.00,MA,1000000002
-a07b8c9d-0e1f-4a2b-9c4d-4e5f6a7b8c9d,f1c4b2e9-9d0a-4c7f-9b0d-2a1b3c4d5e6f,SVC-CNC-SETUP,CNC Setup and Calibration Service,1,5000.00,5000.00,MA,1000000002
+1f3c2a11-0c2b-4f7d-8f2a-9d0e1c2b3a4f,0c2cfc26-2ff8-4c44-9a24-4a0f2a3f3b5a,LAPTOP-T14-G4,ThinkPad T14 Gen 4 (16GB RAM 512GB SSD),25,1200.00,30000.00,IT,100030
+2a4b5c6d-7e8f-4a1b-9c2d-3e4f5a6b7c8d,0c2cfc26-2ff8-4c44-9a24-4a0f2a3f3b5a,DOCK-USBC-PRO,USB-C Pro Docking Station,25,250.00,6250.00,IT,100030
+3b2a1c0d-9e8f-4d3c-8b7a-6f5e4d3c2b1a,2a49c7e5-4f31-4d1e-bc93-5edc7261f4e9,SVC-CONV-ANN,Annual Conveyor Maintenance Contract,1,12500.00,12500.00,MA,100031
+4c3d2e1f-0a9b-4c8d-9e7f-6a5b4c3d2e1f,2a49c7e5-4f31-4d1e-bc93-5edc7261f4e9,PART-ROLLER-32,Replacement Belt Rollers (32mm),4,950.00,3800.00,MA,100031
+5d4e3f2a-1b0c-4d9e-8f7a-6b5c4d3e2f1a,2a49c7e5-4f31-4d1e-bc93-5edc7261f4e9,SVC-EMERG-CALL,Emergency Call-Out Package,1,2000.00,2000.00,MA,100031
+6e5f4a3b-2c1d-4e0f-9a8b-7c6d5e4f3a2b,6f40978e-bb9a-4b63-8e07-19b0c8e2f019,SW-ACAD-LT-ANN,AutoCAD LT Annual License,40,750.00,30000.00,SW,100032
+7f6a5b4c-3d2e-4f1a-8b9c-0d1e2f3a4b5c,6f40978e-bb9a-4b63-8e07-19b0c8e2f019,SVC-CAD-TRAIN,CAD Software Training Workshop (per seat),5,400.00,2000.00,SW,100032
+8a7b6c5d-4e3f-4a2b-9c0d-1e2f3a4b5c6d,7c7e11b8-0f33-45d8-9cc8-2ef0a3b6f7fd,FU-CHAIR-ERGO,Ergonomic Office Chair (Class 4 Gas Lift),50,180.00,9000.00,FU,100033
+9b8c7d6e-5f4a-4b3c-8d1e-2f3a4b5c6d7e,7c7e11b8-0f33-45d8-9cc8-2ef0a3b6f7fd,SVC-DELIVER-ASM,Delivery and Assembly Service,1,500.00,500.00,FU,100033
+0c9d8e7f-6a5b-4c4d-9e2f-3a4b5c6d7e8f,9a8d30c0-0b1b-4d34-b7a7-e9c9a5a6d4e2,SRV-PWREDGE-R750,Dell PowerEdge R750 (2x Xeon 256GB RAM),4,8500.00,34000.00,IT,100034
+1d0e9f8a-7b6c-4d5e-8f3a-4b5c6d7e8f9a,9a8d30c0-0b1b-4d34-b7a7-e9c9a5a6d4e2,RACK-42U-NET,42U Network Rack Enclosure,2,2200.00,4400.00,IT,100034
+2e1f0a9b-8c7d-4e6f-9a4b-5c6d7e8f9a0b,9a8d30c0-0b1b-4d34-b7a7-e9c9a5a6d4e2,RACK-PDU-MGMT,Managed PDU + Cable Management Kit,2,800.00,1600.00,IT,100034
+3f2a1b0c-9d8e-4f7a-8b5c-6d7e8f9a0b1c,ad6d98d7-0f7e-4aa0-9a0a-34cbe2a56d7b,SENS-OPT-PROX,Optical Proximity Sensor (10mm range),30,280.00,8400.00,MA,100035
+4a3b2c1d-0e9f-4a8b-9c6d-7e8f9a0b1c2d,ad6d98d7-0f7e-4aa0-9a0a-34cbe2a56d7b,PART-SENS-BRK,Sensor Mounting Bracket Assembly,10,65.00,650.00,MA,100035
+5b4c3d2e-1f0a-4b9c-8d7e-9f0a1b2c3d4e,ad6d98d7-0f7e-4aa0-9a0a-34cbe2a56d7b,SVC-INST-CALIB,Installation and Calibration Service,1,2800.00,2800.00,MA,100035
+6c5d4e3f-2a1b-4c0d-9e8f-0a1b2c3d4e5f,b7d6a4cf-6b8a-4c07-9f6e-7b2b7b0a0d55,CLOUD-S3-1TB,Cloud Backup Storage (1TB/month),12,280.00,3360.00,SW,100036
+7d6e5f4a-3b2c-4d1e-8f9a-1b2c3d4e5f6a,b7d6a4cf-6b8a-4c07-9f6e-7b2b7b0a0d55,SVC-BACKUP-MGD,Managed Backup Service (monthly),12,500.00,6000.00,SW,100036
+8e7f6a5b-4c3d-4e2f-9a0b-2c3d4e5f6a7b,b7d6a4cf-6b8a-4c07-9f6e-7b2b7b0a0d55,SVC-DR-MIGRATE,Data Migration and DR Testing Package,1,2640.00,2640.00,SW,100036
+9f8a7b6c-5d4e-4f3a-8b1c-3d4e5f6a7b8c,c3b0a8d4-4c0b-4e35-9df7-1cc3a2f6a4b1,FORK-ELEC-3T,Electric Forklift 3T - 3 Year Lease,2,15000.00,30000.00,MA,100037
+0a9b8c7d-6e5f-4a4b-9c2d-4e5f6a7b8c9d,c3b0a8d4-4c0b-4e35-9df7-1cc3a2f6a4b1,SVC-FORK-MAINT,Annual Maintenance and Insurance Package,2,2000.00,4000.00,MA,100037
+aa1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d,c3b0a8d4-4c0b-4e35-9df7-1cc3a2f6a4b1,SVC-FORK-TRAIN,Forklift Operator Safety Certification,1,2000.00,2000.00,MA,100037
+bb2c3d4e-5f6a-4b7c-9d8e-9f0a1b2c3d4e,d28d5a7b-2a58-4fbb-8d6a-9a2f1f4e6c3d,DISP-86-INTER,86-inch Interactive Display Panel,3,3500.00,10500.00,IT,100038
+cc3d4e5f-6a7b-4c8d-9e0f-0a1b2c3d4e5f,d28d5a7b-2a58-4fbb-8d6a-9a2f1f4e6c3d,CAM-CONF-BAR,Video Conferencing Camera Bar (4K),3,1200.00,3600.00,IT,100038
+dd4e5f6a-7b8c-4d9e-8f1a-1b2c3d4e5f6a,d28d5a7b-2a58-4fbb-8d6a-9a2f1f4e6c3d,SYS-AV-CTRL,AV Control System and Structured Cabling,1,1400.00,1400.00,IT,100038
+ee5f6a7b-8c9d-4e0f-9a2b-2c3d4e5f6a7b,f1c4b2e9-9d0a-4c7f-9b0d-2a1b3c4d5e6f,TOOL-CNC-HOLD,CNC Precision Tool Holders Set (50 pcs),1,45000.00,45000.00,MA,100039
+ff6a7b8c-9d0e-4f1a-8b3c-3d4e5f6a7b8c,f1c4b2e9-9d0a-4c7f-9b0d-2a1b3c4d5e6f,TOOL-INSERT-BLK,Carbide Cutting Inserts - Bulk Pack,1,38000.00,38000.00,MA,100039
+a07b8c9d-0e1f-4a2b-9c4d-4e5f6a7b8c9d,f1c4b2e9-9d0a-4c7f-9b0d-2a1b3c4d5e6f,SVC-CNC-SETUP,CNC Setup and Calibration Service,1,5000.00,5000.00,MA,100039
+c1d2e3f4-a5b6-4c7d-8e9f-0a1b2c3d4e5f,a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d,FU-DESK-SIT,Height-Adjustable Sit-Stand Desk,30,450.00,13500.00,FU,100040
+d2e3f4a5-b6c7-4d8e-9f0a-1b2c3d4e5f6a,a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d,FU-PART-GLASS,Glass Partition Wall Panel (120cm),12,650.00,7800.00,FU,100040
+e3f4a5b6-c7d8-4e9f-8a0b-2c3d4e5f6a7b,a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d,SVC-RENO-MGMT,Interior Renovation Project Management,1,3200.00,3200.00,FU,100040
+f4a5b6c7-d8e9-4f0a-9b1c-3d4e5f6a7b8c,b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e,NET-SWITCH-48,48-Port Core Switch (PoE+),3,2800.00,8400.00,IT,100041
+a5b6c7d8-e9f0-4a1b-8c2d-4e5f6a7b8c9d,b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e,NET-WAN-LINK,WAN Link Upgrade Bundle (per office),3,2100.00,6300.00,IT,100041
+b6c7d8e9-f0a1-4b2c-9d3e-5f6a7b8c9d0e,b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e,SVC-NET-DEPLOY,Network Deployment and Testing Service,1,2500.00,2500.00,IT,100041

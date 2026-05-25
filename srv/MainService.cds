@@ -35,18 +35,47 @@ service RequestService {
         virtual isEditable : Boolean,   // true when user has RegionalManager role AND status is N (Draft)
         *
     } actions {
+        // Submit a New request — validates attachment, runs AI compliance, sets status N→S
+        @odata.draft.bypass
         @Common.IsActionCritical: true
         @Common.SideEffects: {
-            TargetProperties: ['status_code', 'approvalDate', 'approver', 'isApprover'],
+            // Virtual fields (isApprover, isEditable) intentionally omitted from TargetProperties:
+            // TargetEntities:[''] already triggers a full entity re-read that recomputes them.
+            // Listing virtual fields here causes OData to try to resolve them in the wrong context
+            // (e.g. via the items navigation → "Requests:items.isEditable") — a known CAP issue.
+            TargetProperties: ['status_code', 'aiComplianceScore', 'aiAuditNotes'],
+            TargetEntities: ['']
+        }
+        action submitRequest() returns Requests;
+
+        @Common.IsActionCritical: true
+        @Common.SideEffects: {
+            TargetProperties: ['status_code', 'approvalDate', 'approver'],
             TargetEntities  : ['']
         }
         action approveRequest() returns Requests;
 
         @Common.SideEffects: {
-            TargetProperties: ['status_code', 'approvalDate', 'approver', 'rejectReason', 'isApprover'],
+            TargetProperties: ['status_code', 'approvalDate', 'approver', 'rejectReason'],
             TargetEntities  : ['']
         }
         action rejectRequest(reason : String) returns Requests;
+
+        // Cancel a request (New or Submitted only) — sets status to C, preserves audit trail
+        @Common.IsActionCritical: true
+        @Common.SideEffects: {
+            TargetProperties: ['status_code', 'cancelReason', 'approvalDate', 'approver'],
+            TargetEntities  : ['']
+        }
+        action cancelRequest(reason : String) returns Requests;
+
+        // Withdraw a Submitted request back to New so the requester can edit and re-submit
+        @Common.IsActionCritical: true
+        @Common.SideEffects: {
+            TargetProperties: ['status_code', 'approver', 'approvalDate'],
+            TargetEntities  : ['']
+        }
+        action withdrawRequest() returns Requests;
 
         // Bound action: generate business justification for the current request draft
         @cds.odata.bindingparameter.name : '_it'
@@ -123,7 +152,7 @@ annotate RequestService.Requests with @(
             'filter',
             'search',
         ],
-        GroupableProperties: [status_code, costCenter, currency, statusText],
+        GroupableProperties: [status_code, costCenter, currency, statusText, createdAt],
         AggregatableProperties: [
             {
                 Property: totalAmount,
@@ -148,3 +177,4 @@ annotate RequestService.Requests with @(
         @Common.Label: '{i18n>RequestCount}',
     },
 );
+        

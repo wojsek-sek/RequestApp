@@ -161,6 +161,12 @@
                       "visualFilter": {
                         "valueList": "com.sap.vocabularies.Common.v1.ValueList#VisualFilterCostCenter"
                       }
+                    },
+                    "createdAt": {
+                      "availability": "Default",
+                      "visualFilter": {
+                        "valueList": "com.sap.vocabularies.Common.v1.ValueList#VisualFilterCreatedAt"
+                      }
                     }
                   }
                 },

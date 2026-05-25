@@ -28,8 +28,6 @@ interface S4SupplierData {
 /** Requests entity: validation, bound actions, draft-save supplier check. */
 export class RequestHandler {
 
-    constructor() {}
-
     /** Title length, justification for high amounts, positive total. */
     validateOnWrite = async (req: cds.Request) => {
         const { totalAmount, justification, title } = req.data as Partial<Request>;
@@ -48,19 +46,31 @@ export class RequestHandler {
     };
 
     /**
-     * Ensure status_code is always included in projected columns.
-     * Fiori List Report sometimes omits it when it builds column lists dynamically;
-     * without it the criticality icon cannot be rendered.
+     * Ensure control-relevant columns are always included in OData $select.
+     *
+     * Fiori Elements only requests columns that are rendered in the table.
+     * Virtual fields used solely for annotation expressions (UpdateHidden,
+     * OperationAvailable, UpdateRestrictions) are never in Fiori's $select,
+     * so CAP omits them from the response and the client receives `undefined`.
+     * Fiori treats `undefined` as permissive (truthy), which breaks button
+     * graying logic entirely.
+     *
+     * Fields injected:
+     *   status_code — criticality icon in List Report
+     *   isEditable  — Edit button state (UpdateHidden, UpdateRestrictions)
+     *   isApprover  — Approve/Reject button state (OperationAvailable, SoD)
      */
-    injectStatusCodeColumn = (req: cds.Request) => {
-        const query = req.query.SELECT;
-        if (query?.columns) {
-            // CAP's column_expr.ref is _segment[] where simple path segments are strings;
-            // cast to string[] is safe for the single-level refs Fiori generates.
-            const cols = query.columns as Array<{ ref?: string[] }>;
-            const hasStatusCode = cols.some(col => col.ref?.includes('status_code'));
-            if (!hasStatusCode) {
-                query.columns.push({ ref: ['status_code'] });
+    injectRequiredColumns = (req: cds.Request): void => {
+        const query = req.query?.SELECT;
+        if (!query?.columns) return; // wildcard SELECT (*) — all columns already included
+
+        const cols = query.columns as Array<{ ref?: string[] }>;
+        const has  = (name: string) => cols.some(c => c.ref?.at(-1) === name);
+
+        const REQUIRED = ['status_code', 'isEditable', 'isApprover'] as const;
+        for (const field of REQUIRED) {
+            if (!has(field)) {
+                cols.push({ ref: [field] });
             }
         }
     };
@@ -79,19 +89,19 @@ export class RequestHandler {
      *     1. Current user has the 'RegionalManager' role (Viewers are read-only)
      *     2. Request status is 'N' (New/Draft) — cannot edit submitted/approved/rejected requests
      */
-    afterRead = (results: Request | Request[], req: cds.Request) => {
-        const user = req.user;
-        const isManager = user.is('RegionalManager');
-        const rows = Array.isArray(results) ? results : [results];
-        for (const row of rows) {
-            const statusCode = (row as any).status_code;
-            (row as any).isApprover =
-                isManager &&
-                row.createdBy !== user.id &&
-                statusCode === 'S';
-            (row as any).isEditable =
-                isManager &&
-                statusCode === 'N';
+    afterRead = async (results: Requests[], req: cds.Request) => {
+        const userId    = cds.context?.user?.id;
+        const isManager = cds.context?.user?.is('RegionalManager');
+
+        const items = Array.isArray(results) ? results : [results];
+        for (const item of items) {
+            if (!item || !(item as any).ID) continue;
+
+            // SoD: isApprover = RegionalManager + not creator + status is Submitted
+            (item as any).isApprover = !!(isManager && (item as any).createdBy !== userId && (item as any).status_code === 'S');
+
+            // isEditable: RegionalManager and status is New (N) only
+            (item as any).isEditable = !!(isManager && (item as any).status_code === 'N');
         }
     };
 
@@ -127,56 +137,94 @@ export class RequestHandler {
         return SELECT.one.from(Request).where({ ID });
     };
 
-    /** Runs on draft activation (Fiori "Save" button). Validates, checks attachments, runs AI compliance, and sets status. */
+    /** Runs on draft activation (Fiori "Save"). Basic validation only — status stays N. */
     beforeSave = async (req: cds.Request) => {
-        const data      = req.data as Partial<Request>;
-        const requestId = data.ID;
-        if (!requestId) return;
+        const data = req.data as Partial<Request>;
+        if (!data.ID) return;
 
-        // 1. Validate title and high-value justification threshold
+        // Guard: only N-status (Draft) requests can be saved via the edit flow.
+        // S/A/R/C transitions happen exclusively through the explicit bound actions.
+        // UI.UpdateHidden is NOT used in annotations (it breaks the List Report Edit button),
+        // so this server-side check is the authoritative gate.
+        const current = await SELECT.one.from(Request).columns('status_code').where({ ID: data.ID });
+        if (current && current.status_code && current.status_code !== 'N') {
+            return req.error(400, 'EDIT_NOT_ALLOWED_FOR_CURRENT_STATUS');
+        }
+
         if (data.title && data.title.length < 5) {
             return req.error(400, 'TITLE_TOO_SHORT', 'title');
         }
-        if (((data.totalAmount ?? 0) as number) > 5000 && !data.justification) {
-            return req.error(400, 'Justification required for amounts over 5000');
+        if ((data.totalAmount ?? 0) > 1000 && !data.justification) {
+            return req.error(400, 'JUSTIFICATION_REQUIRED_FOR_HIGH_AMOUNT', 'justification');
+        }
+        // status_code intentionally NOT set here — it stays N (the schema default).
+    };
+
+    /**
+     * Submit a New request into the approval workflow.
+     * Validates: attachment present, then runs AI compliance check.
+     * Sets status N→S (AI may set A or R directly if confidence is high).
+     */
+    submitRequest = async (req: cds.Request) => {
+        const { ID } = req.params[0] as { ID: string };
+
+        // 1. Guard — only New requests can be submitted
+        const current = await SELECT.one.from(Request).where({ ID });
+        if (!current) return req.error(404, 'REQUEST_NOT_FOUND');
+        if (current.status_code !== 'N') {
+            return req.error(400, 'SUBMIT_ONLY_ALLOWED_FOR_NEW');
         }
 
-        // 2. Require at least one attachment before activating the draft
-        const attachments = await SELECT.from(Requests.attachments.drafts)
-            .where({ up__ID: requestId }) as Requests.attachment[];
+        // 2. Require at least one attachment
+        const attachments = await SELECT.from(Requests.attachments)
+            .where({ up__ID: ID }) as Requests.attachment[];
         if (!attachments.length) {
-            return req.error(400, 'At least one attachment is required before submitting');
+            return req.error(400, 'ATTACH_REQUIRED_FOR_SUBMIT');
         }
 
         // 3. AI compliance check — graceful degradation if hub is unavailable
+        let newStatusCode: 'S' | 'A' | 'R' = 'S';
+        let aiScore: number | null = null;
+        let aiNotes: string | null = null;
+
         try {
             const agentHub = await cds.connect.to('AI_Agent_Hub');
 
             const analysis = await agentHub.send('analyzeDocument', {
-                requestId,
+                requestId:   ID,
                 fileName:    (attachments[0] as any).filename,
-                totalAmount: data.totalAmount,
+                totalAmount: current.totalAmount,
             }) as AnalysisResult;
 
             const compliance = await agentHub.send('verifyCompliance', analysis) as ComplianceResult;
 
-            // 4. Write AI results and derived status into the draft activation payload
-            (req.data as any).aiComplianceScore = compliance.score;
-            (req.data as any).aiAuditNotes      = compliance.notes;
+            aiScore = compliance.score;
+            aiNotes = compliance.notes;
 
             const decision = compliance.decision?.toUpperCase();
             if (decision === 'APPROVED') {
-                (req.data as any).status_code = 'A';
+                newStatusCode = 'A';
             } else if (decision === 'REJECTED') {
-                (req.data as any).status_code = 'R';
+                newStatusCode = 'R';
             } else {
-                (req.data as any).status_code = 'S';
+                newStatusCode = 'S';
             }
         } catch (e: unknown) {
-            console.warn('[AI] Agent Hub unavailable, proceeding without compliance check:',
+            console.warn('[AI] Agent Hub unavailable, submitting without compliance check:',
                 (e as { message?: string })?.message ?? String(e));
-            (req.data as any).status_code = 'S';
+            newStatusCode = 'S';
         }
+
+        // 4. Persist status + AI results
+        await UPDATE(Requests)
+            .set({
+                status_code:       newStatusCode,
+                aiComplianceScore: aiScore,
+                aiAuditNotes:      aiNotes,
+            })
+            .where({ ID });
+
+        return SELECT.one.from(Request).where({ ID });
     };
 
     /** Supplier existence and block check against S/4HANA before activating draft. */
@@ -214,8 +262,6 @@ export class RequestHandler {
             if (supplierData.DeletionIndicator === true) {
                 return req.error(400, 'SUPPLIER_BLOCKED', 'supplierId', [supplierLabel]);
             }
-
-            //req.info('SUPPLIER_SAFE', undefined, [supplierLabel]);
         } catch (error: unknown) {
             const e = error as { message?: string; response?: { status?: number } };
 
@@ -236,18 +282,59 @@ export class RequestHandler {
     };
 
     /**
-     * Soft delete: instead of physically removing the row, set status to 'C' (Cancelled).
-     * This preserves the audit trail. The actual DELETE is rejected via req.reply().
+     * Cancel a request — allowed only for New (N) or Submitted (S) status.
+     * Sets status to Cancelled (C) and persists the optional cancellation reason.
+     * Approved and Rejected requests are terminal states and cannot be cancelled.
+     * This action replaces the Delete button; no rows are physically removed.
      */
-    softDelete = async (req: cds.Request) => {
+    cancelRequest = async (req: cds.Request) => {
         const { ID } = req.params[0] as { ID: string };
+        const { reason } = req.data as { reason?: string };
+        const currentUserId = req.user.id;
+
+        // Validate: only New or Submitted requests can be cancelled
+        const current = await SELECT.one.from(Request).where({ ID });
+        if (!current) return req.error(404, 'REQUEST_NOT_FOUND');
+        if (!['N', 'S'].includes(current.status_code as string)) {
+            return req.error(400, 'CANCEL_NOT_ALLOWED_FOR_STATUS');
+        }
 
         await UPDATE(Requests)
-            .set({ status_code: 'C' })
+            .set({
+                status_code:  'C',
+                cancelReason: reason ?? null,
+                approvalDate: new Date().toISOString(),
+                approver:     currentUserId,
+            })
             .where({ ID });
 
-        // Return empty object to satisfy OData 204 No Content expectation
-        return req.reply({});
+        return SELECT.one.from(Request).where({ ID });
+    };
+
+    /**
+     * Withdraw a Submitted request back to New so the requester can edit and re-submit.
+     * Clears approval tracking fields; preserves justification and AI audit results.
+     */
+    withdrawRequest = async (req: cds.Request) => {
+        const { ID } = req.params[0] as { ID: string };
+
+        const current = await SELECT.one.from(Request).where({ ID });
+        if (!current) return req.error(404, 'REQUEST_NOT_FOUND');
+        if (current.status_code !== 'S') {
+            return req.error(400, 'WITHDRAW_ONLY_ALLOWED_FOR_SUBMITTED');
+        }
+
+        await UPDATE(Requests)
+            .set({
+                status_code  : 'N',
+                approver     : null,
+                approvalDate : null,
+                aiComplianceScore : null,
+                aiAuditNotes : null,
+            })
+            .where({ ID });
+
+        return SELECT.one.from(Request).where({ ID });
     };
 
     /** Generate business justification via Gemini and persist on the request draft. */
@@ -259,7 +346,7 @@ export class RequestHandler {
         ) as Item[];
 
         const itemNames      = draftItems.map((item) => item.description).join(', ');
-        const itemCategories = draftItems.map((item) => item.category).join(', ');
+        const itemCategories = draftItems.map((item) => item.category_code).join(', ');
 
         if (!itemNames) {
             return req.error(400, 'AI_ITEMS_REQUIRED');

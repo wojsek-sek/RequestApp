@@ -42,6 +42,13 @@ annotate service.Requests with @(
                 // Only visible when status is Rejected
                 ![@UI.Hidden]: { $edmJson: { $Ne: [{ $Path: 'status_code' }, 'R'] } },
             },
+            {
+                $Type : 'UI.DataField',
+                Value : cancelReason,
+                Label : '{i18n>CancelReason}',
+                // Only visible when status is Cancelled
+                ![@UI.Hidden]: { $edmJson: { $Ne: [{ $Path: 'status_code' }, 'C'] } },
+            },
         ],
     },
     UI.FieldGroup #JustificationGroup : {
@@ -62,7 +69,7 @@ annotate service.Requests with @(
     //   score >= 80 → Positive  (green,  3)
     UI.DataPoint #AIScoreDataPoint : {
         Value : aiComplianceScore,
-        Title : 'AI Compliance Score',
+        Title : '{i18n>AIComplianceScore}',
         Criticality: {
         $edmJson: {
             $If: [
@@ -83,17 +90,17 @@ annotate service.Requests with @(
     // AI Audit Results — hidden while Draft, shown after submission.
     UI.FieldGroup #AIAuditResultsGroup : {
         $Type : 'UI.FieldGroupType',
-        Label : 'AI Audit Results',
+        Label : '{i18n>AIAuditResults}',
         Data : [
             {
                 $Type  : 'UI.DataFieldForAnnotation',
                 Target : '@UI.DataPoint#AIScoreDataPoint',
-                Label  : 'Compliance Score',
+                Label  : '{i18n>ComplianceScore}',
             },
             {
                 $Type : 'UI.DataField',
                 Value : aiAuditNotes,
-                Label : 'Audit Notes',
+                Label : '{i18n>AuditNotes}',
             },
         ],
     },
@@ -122,7 +129,7 @@ annotate service.Requests with @(
             ![@UI.Hidden] : {$edmJson: {$Eq: [{$Path: 'status_code'}, 'N']}},
         },
         {
-            // 3 — always visible; add/delete locked when not New by entity-level UI.UpdateHidden
+            // 3 — always visible
             $Type : 'UI.CollectionFacet',
             ID    : 'AttachmentsFacet',
             Label : '{i18n>Attachments}',
@@ -156,6 +163,7 @@ annotate service.Requests with @(
         approvalDate,
         justification,
         totalAmount,
+        createdAt,   // time-based dimension for the Line chart visual filter
     ],
     
     UI.LineItem : [
@@ -238,14 +246,29 @@ annotate service.Requests with @(
     ],
 
     UI.Identification: [
+            // Submit: visible only for New (N) status — the primary progression action
+            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.submitRequest',
+              Label: '{i18n>Submit}', Criticality: 3,
+              ![@UI.Hidden]: { $edmJson: { $Ne: [{ $Path: 'status_code' }, 'N'] } }
+            },
             // Approve/Reject: visible only when isApprover=true (RegionalManager, not the creator, status=S)
             { $Type: 'UI.DataFieldForAction', Action: 'RequestService.approveRequest', Label: '{i18n>Approve}', Criticality: 3,
               ![@UI.Hidden]: { $edmJson: { $Not: [{ $Path: 'isApprover' }] } } },
             { $Type: 'UI.DataFieldForAction', Action: 'RequestService.rejectRequest',  Label: '{i18n>Reject}',  Criticality: 1,
               ![@UI.Hidden]: { $edmJson: { $Not: [{ $Path: 'isApprover' }] } } },
-            { 
-                $Type: 'UI.DataFieldForAction', 
-                Action: 'RequestService.generateAIJustification', 
+            // Cancel: visible for New (N) or Submitted (S) status — replaces the Delete button
+            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.cancelRequest',  Label: '{i18n>Cancel}',  Criticality: 0,
+              ![@UI.Hidden]: { $edmJson: { $And: [
+                  { $Ne: [{ $Path: 'status_code' }, 'N'] },
+                  { $Ne: [{ $Path: 'status_code' }, 'S'] }
+              ]}}},
+            // Withdraw: visible only when status is Submitted (S) — sends back to New for editing
+            { $Type: 'UI.DataFieldForAction', Action: 'RequestService.withdrawRequest', Label: '{i18n>Withdraw}', Criticality: 0,
+              ![@UI.Hidden]: { $edmJson: { $Ne: [{ $Path: 'status_code' }, 'S'] } }
+            },
+            {
+                $Type: 'UI.DataFieldForAction',
+                Action: 'RequestService.generateAIJustification',
                 Label: '{i18n>AutoJustify}',
                 IconUrl: 'sap-icon://ai'
             }
@@ -256,13 +279,17 @@ annotate service.Requests with @(
     //   - Viewer (readonly-user): isEditable is always false → buttons never appear
     //   - RegionalManager viewing a Submitted/Approved/Rejected request: status ≠ N → false
     UI.UpdateHidden : { $edmJson: { $Not: [{ $Path: 'isEditable' }] } },
-    UI.DeleteHidden : { $edmJson: { $Not: [{ $Path: 'isEditable' }] } },
+    UI.DeleteHidden : true,
+
+    Capabilities.UpdateRestrictions: {
+        Updatable: { $edmJson: { $Path: 'isEditable' } }
+    }
     
 );
 
 // Value helps + UI behavior
 annotate service.Requests with {
-    createdAt  @UI.Hidden;
+    createdAt  @UI.HiddenFilter: false;
     createdBy  @UI.Hidden;
     modifiedAt @UI.Hidden;
     modifiedBy @UI.Hidden;
@@ -275,6 +302,7 @@ annotate service.Requests with {
     approvalDate @readonly;
     totalAmount @readonly;
     rejectReason @readonly;
+    cancelReason @readonly;
 
     justification @UI.MultiLineText: true;
 
@@ -300,8 +328,7 @@ annotate service.Requests with {
                 {
                     $Type : 'Common.ValueListParameterDisplayOnly',
                     ValueListProperty : 'Name',
-                    Label: '{i18n>CompanyCode}'
-
+                    Label: '{i18n>Name}',
                 },
                 {
                     $Type : 'Common.ValueListParameterDisplayOnly',
@@ -374,20 +401,9 @@ annotate service.Items with @(
         },
     ],
 
-    // 1. Group the fields that should appear on the detail page
     UI.FieldGroup #ItemDetails : {
         $Type : 'UI.FieldGroupType',
         Data : [
-            // {
-            //     $Type : 'UI.DataField',
-            //     Value : productId,
-            //     Label : '{i18n>Product}'
-            // },
-            // {
-            //     $Type : 'UI.DataField',
-            //     Value : description,
-            //     Label : '{i18n>ItemDescription}'
-            // },
             {
                 $Type : 'UI.DataField',
                 Value : quantity,
@@ -483,9 +499,7 @@ annotate service.Items with {
                 {
                     $Type : 'Common.ValueListParameterDisplayOnly',
                     ValueListProperty : 'SupplierName',
-
                 },
-                //{ $Type: 'Common.ValueListParameterDisplayOnly', ValueListProperty: 'CompanyCode' }
             ],
         }
     );
@@ -506,19 +520,22 @@ annotate service.Items with {
 };
 
 annotate service.Requests with {
-    totalAmount @Common.Label : '{i18n>Amount}'
+    totalAmount   @Common.Label: '{i18n>Amount}';
+    justification @Common.Label: '{i18n>BusinessJustification}';
+    approvalDate  @Common.Label: '{i18n>ApprovalDate}';
+    title         @Common.Label: '{i18n>Title}';
 };
 
-annotate service.Requests with {
-    justification @Common.Label : '{i18n>BusinessJustification}'
-};
-
-annotate service.Requests with {
-    approvalDate @Common.Label : '{i18n>ApprovalDate}'
-};
-
-annotate service.Requests with {
-    title @Common.Label : '{i18n>Title}'
+// Hide internal / auto-generated columns from the Attachments sub-table.
+// The plugin's own @UI.LineItem already shows: content (filename link), status, createdAt, createdBy, note.
+// The fields below are either FK keys, duplicates, or fully system-managed — no value shown to the user.
+annotate service.Requests.attachments with {
+    ID         @UI.Hidden;        // internal UUID key — meaningless to the user
+    up__ID     @UI.Hidden;        // FK back to the parent request — redundant in context
+    mimeType   @UI.Hidden;        // already embedded in the content download link rendering
+    lastScan   @UI.Hidden;        // system-managed scan timestamp — noise in the table
+    modifiedAt @UI.Hidden;        // attachments are not modified after upload; createdAt suffices
+    modifiedBy @UI.Hidden;        // same — createdBy already covers the uploader identity
 };
 
 annotate RequestService.Requests with @(
@@ -542,6 +559,26 @@ annotate RequestService.Requests with actions {
             TargetProperties: ['_it/justification'],
         }
     );
+    // cancelRequest SideEffects are defined on the action in MainService.cds
+    // (TargetEntities: [''] triggers a full entity re-read — status, cancelReason, etc.)
+
+    // Gray out toolbar action buttons when selected rows don't satisfy the condition.
+    // Fiori Elements evaluates @Core.OperationAvailable per selected row and disables
+    // the button if ANY row returns false.
+    submitRequest   @Core.OperationAvailable : { $edmJson: { $Eq: [{ $Path: 'status_code' }, 'N'] }};
+    approveRequest  @Core.OperationAvailable : { $edmJson: { $Path: 'isApprover' } };
+    rejectRequest   @Core.OperationAvailable : { $edmJson: { $Path: 'isApprover' } };
+
+    cancelRequest   @Core.OperationAvailable : { $edmJson: {
+        $Or: [
+            { $Eq: [{ $Path: 'status_code' }, 'N'] },
+            { $Eq: [{ $Path: 'status_code' }, 'S'] }
+        ]
+    }};
+
+    withdrawRequest @Core.OperationAvailable : { $edmJson: {
+        $Eq: [{ $Path: 'status_code' }, 'S']
+    }};
 };
 
 annotate RequestService.Requests with @(
@@ -600,7 +637,7 @@ annotate RequestService.Requests with @(
 );
 
 annotate RequestService.Requests with @(
-    // 1. Mini-wykres dla Statusu
+    // Status visual filter mini-chart (bar — count per status)
     UI.Chart #VFChartStatus: {
         ChartType: #Bar,
         DynamicMeasures: ['@Analytics.AggregatedProperty#RequestCount' ],
@@ -615,7 +652,6 @@ annotate RequestService.Requests with @(
         }]
     },
     // Presentation variant for the Status visual filter.
-    // MaxItems: show all 5 statuses (N/S/A/R/C) — default is 3 bars without this setting.
     UI.PresentationVariant #VFStatusPV: {
         SortOrder : [{
             Property  : status_code,
@@ -624,9 +660,36 @@ annotate RequestService.Requests with @(
         Visualizations: ['@UI.Chart#VFChartStatus']
     },
 
-    // 2. Mini-wykres dla Cost Center
+    // 3. Visual Filter: Total Spend Over Time (Line chart — requires time-based dimension)
+    // createdAt (Timestamp → Edm.DateTimeOffset) satisfies the Line chart requirement.
+    // The chart always displays the last 6 data points sorted ascending — MaxItems does not apply here.
+    UI.Chart #VFChartCreatedAt: {
+        ChartType: #Line,
+        DynamicMeasures: ['@Analytics.AggregatedProperty#TotalAmountSum'],
+        Dimensions: [createdAt],
+        MeasureAttributes: [{
+            DynamicMeasure: '@Analytics.AggregatedProperty#TotalAmountSum',
+            Role: #Axis1
+        }],
+        DimensionAttributes: [{
+            Dimension: createdAt,
+            Role: #Category
+        }]
+    },
+    // Presentation variant for the time-based visual filter.
+    // SortOrder ascending — oldest to newest so the line reads left-to-right.
+    // No MaxItems here — Line charts are not bar charts; the runtime controls the visible window.
+    UI.PresentationVariant #VFCreatedAtPV: {
+        SortOrder: [{
+            Property: createdAt,
+            Descending: false
+        }],
+        Visualizations: ['@UI.Chart#VFChartCreatedAt']
+    },
+
+    // Cost center visual filter mini-chart (bar — total spend per cost center)
     UI.Chart #VFChartCostCenter: {
-        ChartType: #Bar, // Poziomy Bar wygląda obłędnie w ciasnym pasku filtrów
+        ChartType: #Bar,
         DynamicMeasures: ['@Analytics.AggregatedProperty#TotalAmountSum'],
         Dimensions: [costCenter],
         MeasureAttributes: [{
@@ -639,7 +702,6 @@ annotate RequestService.Requests with @(
         }]
     },
     // Presentation variant for the Cost Center visual filter.
-    // MaxItems: show up to 20 cost centers — default is 3 bars without this setting.
     // SortOrder Descending = show highest-spend cost centers first.
     UI.PresentationVariant #VFCostCenterPV: {
         SortOrder : [{
@@ -674,4 +736,22 @@ annotate RequestService.Requests with {
             ]
         }
     );
+
+    createdAt @(
+        Common.Label: '{i18n>CreatedDate}',
+        Common.ValueList #VisualFilterCreatedAt: {
+            CollectionPath: 'Requests',
+            PresentationVariantQualifier: 'VFCreatedAtPV',
+            Parameters: [
+                {
+                    $Type: 'Common.ValueListParameterInOut',
+                    LocalDataProperty: createdAt,
+                    ValueListProperty: 'createdAt'
+                }
+            ]
+        }
+    );
 };
+
+// Enables mass-edit: Fiori can PATCH active instances directly (bypasses draft protocol).
+annotate service.Requests with @odata.draft.bypass;

@@ -43,10 +43,13 @@ graph LR
 ```mermaid
 stateDiagram-v2
     direction LR
-    [*] --> Draft
-    Draft --> Submitted : submit
+    [*] --> New
+    New --> Submitted   : submit
+    Submitted --> New   : withdraw
     Submitted --> Approved : approve
     Submitted --> Rejected : reject
+    New --> Cancelled       : cancel
+    Submitted --> Cancelled : cancel
 ```
 
 ---
@@ -119,19 +122,22 @@ CAPMAP/
 
 | Field | Type | Notes |
 |---|---|---|
-| `title` | String | Min 5 characters |
-| `totalAmount` | Decimal | Auto-recalculated from items |
-| `currency` | Currency | Default: USD |
-| `costCenter` | String | S/4HANA cost center reference |
-| `region` | String | Row-level security key (EU / US / PL …) |
-| `status` | Association | → `Statuses` code-list |
-| `approver` / `approvalDate` | String / Date | Set on approve or reject |
-| `justification` | LargeString | Manual or AI-generated |
+| `title` | String(100) | Min 5 characters |
+| `totalAmount` | Decimal(15,2) | Auto-recalculated from items |
+| `currency` | String(3) | Default: USD |
+| `costCenter` | String(10) | S/4HANA cost center reference |
+| `region` | String(2) | Row-level security key (EU / US / PL …) |
+| `status` | Association | → `Statuses` code-list; default N |
+| `approver` / `approvalDate` | String / DateTime | Set on workflow transitions |
+| `justification` | String(500) | Manual or AI-generated |
+| `rejectReason` / `cancelReason` | String(500) | Set by `rejectRequest` / `cancelRequest` |
+| `aiComplianceScore` / `aiAuditNotes` | Integer / String | Set by AI compliance check on submit |
+| `attachments` | Composition | `@cap-js/attachments` — required before submit |
 | `items` | Composition | → `Items` (cascade delete) |
 
-**`Items`** (line items) — `productId`, `description`, `quantity`, `price`, `itemTotal` (calculated), `category` → Categories, `supplierId`
+**`Items`** (line items) — `productId`, `description`, `quantity`, `price`, `itemTotal` (auto-calculated), `category` → Categories, `supplierId`
 
-**Code-lists:** `Statuses` — D Draft · S Submitted · A Approved · R Rejected (with criticality colours) | `Categories` — IT · FU · MA · SW
+**Code-lists:** `Statuses` — N New · S Submitted · A Approved · R Rejected · C Cancelled (with criticality colours) | `Categories` — IT · FU · MA · SW
 
 ---
 
@@ -143,12 +149,14 @@ CAPMAP/
 
 | Action | Visible when | Effect |
 |---|---|---|
-| `submitRequest()` | status = Draft | Sets status → Submitted |
-| `approveRequest()` | status = Submitted | Sets status → Approved, records approver + date |
-| `rejectRequest()` | status = Submitted | Sets status → Rejected, records approver + date |
-| `generateAIJustification()` | Draft only | Calls Gemini, saves 2–3 sentence justification |
+| `submitRequest()` | status = N | Checks attachment, runs AI compliance, sets N → S (or A/R on high-confidence AI) |
+| `approveRequest()` | status = S, SoD pass | Sets status → A, records approver + date |
+| `rejectRequest()` | status = S, SoD pass | Sets status → R, records approver + date + reason |
+| `cancelRequest()` | status = N or S | Sets status → C, records reason |
+| `withdrawRequest()` | status = S | Resets status → N for re-editing; clears AI results |
+| `generateAIJustification()` | Draft (editing) only | Calls Gemini, saves 2–3 sentence justification to draft |
 
-**Validation:** `title` ≥ 5 chars · `justification` required when `totalAmount > 1000` · supplier `DeletionIndicator` checked via S/4HANA before save.
+**Validation:** `title` ≥ 5 chars · `justification` required when `totalAmount > 1000` · supplier `DeletionIndicator` checked via S/4HANA before draft activation · only N-status requests can be saved via the edit flow (`beforeSave` guard).
 
 **Analytics:** `$apply` aggregations enabled — powers the List Report charts (groupby status / costCenter, sum / countdistinct on amounts and IDs).
 
@@ -184,7 +192,7 @@ The `Region` user attribute is assigned in the BTP cockpit per role collection m
 - **Development:** Direct `sandbox.api.sap.com` URLs + `S4HANA_API_KEY` from `.env`
 - **Production:** Named destination `S4HANA_DESTINATION` via BTP Destination Service
 
-**Gemini AI:** model `gemini-2.5-flash-preview-05-20` · key `GEMINI_API_KEY` in `.env` · prompt in `srv/utils/PromptTemplates.ts`
+**Gemini AI:** model `gemini-3-flash-preview` · key `GEMINI_API_KEY` in `.env` · prompt in `srv/utils/PromptTemplates.ts`
 
 ---
 
@@ -204,14 +212,19 @@ S4HANA_API_KEY=your_sap_sandbox_api_key
 
 ```bash
 npm install
-cds watch                   # dev server at localhost:4004 (SQLite, mock auth)
-npm run watch-requestsui    # same + auto-opens the Fiori app in the browser
+cds watch                       # dev server at localhost:4004 (SQLite, mock auth)
+npm run watch-requestsui        # same + auto-opens the Fiori app in the browser
+npm run seed:attachments        # attach a test PDF to every request (dev data)
 ```
 
 After any change to `.cds` model files, regenerate TypeScript types:
 
 ```bash
+# global CDS CLI:
 cds-typer '*' --outputDirectory @cds-models
+
+# Windows (local install, avoids shebang crash):
+node node_modules/@cap-js/cds-typer/lib/cli.js "*" --outputDirectory @cds-models
 ```
 
 ---
@@ -226,7 +239,7 @@ cds-typer '*' --outputDirectory @cds-models
 | Request Object Page | `Requests` (draft-enabled) |
 | Item Object Page | `Items` (nested in draft) |
 
-**Notable features:** visual filter bar (mini charts for Status + CostCenter) · analytics tab (column + donut charts) · contextual action buttons (Submit / Approve / Reject appear based on status) · AI button (draft only) · value-helps loaded live from S/4HANA · side effects refresh totals and justification on save.
+**Notable features:** visual filter bar (mini charts for Status + CostCenter + Created Date) · analytics tab (column + donut charts) · contextual action buttons (Submit / Approve / Reject / Cancel / Withdraw — shown per status) · AI button (draft only) · value-helps loaded live from S/4HANA · side effects refresh totals and justification on save · `@odata.draft.bypass` enables mass inline editing.
 
 ---
 

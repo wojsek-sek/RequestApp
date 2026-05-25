@@ -15,47 +15,44 @@ aspect ApprovalTracking {
 // ---------------------------------------------------------
 // CapEx Request Header
 // ---------------------------------------------------------
-// By adding 'ApprovalTracking', the Requests entity inherits its fields
 entity Requests : cuid, managed, ApprovalTracking {
     title        : String(100)  @title: 'Request Title' @mandatory;
     totalAmount  : Decimal(15, 2) @title: 'Total Amount';
     currency     : String(3) default 'USD' @title: 'Currency';
     costCenter   : String(10)   @title: 'Cost Center (S/4HANA)';
-    
+
     @Common.Text           : status.name
     @Common.TextArrangement: #TextOnly
     status       : Association to Statuses default 'N' @title: 'Status';
-    // Composition: Items are deleted if the Request is deleted
     items        : Composition of many Items on items.request = $self;
-    region : String(2); // np. 'EU', 'US'
+    region       : String(2);
 
-    // Uploaded documents (PDFs etc.) — managed by @cap-js/attachments plugin
     attachments       : Composition of many Attachments;
 
-    // AI agent outputs written by submitRequest flow
     aiComplianceScore : Integer;
     aiAuditNotes      : String;
-    rejectReason      : String(500) @title: 'Rejection Reason';
+
+    // Workflow reason fields — populated by the corresponding bound action
+    rejectReason  : String(500) @title: 'Rejection Reason';
+    cancelReason  : String(500) @title: 'Cancellation Reason';
 }
 
 // ---------------------------------------------------------
-// Request Items (Equipment / Services)
+// Request Items
 // ---------------------------------------------------------
 entity Items : cuid {
     request      : Association to Requests;
-    
-    // Field for integrating S/4HANA Product Master Data
     productId    : String(40)   @title: 'Product ID (S/4HANA)';
     description  : String(200)  @title: 'Item Description';
     quantity     : Integer      @title: 'Quantity' @mandatory;
     price        : Decimal(15, 2) @title: 'Unit Price (Net)' @mandatory;
     category     : Association to Categories @title: 'Category';
     supplierId   : String(10) @title: 'Suggested Supplier (BP)' @mandatory;
-    itemTotal : Decimal(15, 2) @title: 'Item Total';
+    itemTotal    : Decimal(15, 2) @title: 'Item Total';
 }
 
 // ---------------------------------------------------------
-// CodeLists (Dictionaries for Dropdowns)
+// CodeLists
 // ---------------------------------------------------------
 entity Statuses : CodeList {
     key code : String(1) enum {
@@ -63,22 +60,22 @@ entity Statuses : CodeList {
         Submitted = 'S';
         Approved  = 'A';
         Rejected  = 'R';
-        Cancelled = 'C';   // Soft-deleted: row is preserved for audit trail
+        Cancelled = 'C';
     };
     criticality : Integer = case code
-        when 'A' then 3 // Green (Approved)
-        when 'R' then 1 // Red (Rejected)
-        when 'S' then 2 // Yellow (Submitted)
-        when 'C' then 0 // Grey (Cancelled)
-        else 0          // Grey (New / Unknown)
+        when 'A' then 3
+        when 'R' then 1
+        when 'S' then 5
+        when 'C' then 2
+        else 0
     end @title: 'Criticality';
 }
 
 entity Categories : CodeList {
     key code : String(2) enum {
-        IT        = 'IT'; // Computers, Servers
-        Furniture = 'FU'; // Office Furniture
-        Machinery = 'MA'; // Machines
-        Software  = 'SW'; // Licenses
+        IT        = 'IT';
+        Furniture = 'FU';
+        Machinery = 'MA';
+        Software  = 'SW';
     };
 }

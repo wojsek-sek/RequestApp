@@ -6,7 +6,7 @@ Practical reference for working on the codebase. See [README.md](README.md) for 
 
 ## Handler Development
 
-All service event handlers follow a consistent pattern. Register them in `MainService.ts` inside `cds.on('bootstrap')`.
+All service event handlers live in `srv/handlers/` and are registered in `MainService.ts` inside the `init()` method. The pattern uses arrow-function class fields (automatically bound to `this`).
 
 ```typescript
 // srv/handlers/MyFeatureHandler.ts
@@ -14,97 +14,146 @@ import cds from '@sap/cds'
 import { Requests } from '#cds-models/RequestService'
 
 export class MyFeatureHandler {
-  constructor(
-    private srv: cds.ApplicationService,
-    private externalApi?: cds.RemoteService
-  ) {}
+    /** Before CREATE/UPDATE: validate input */
+    validate = (req: cds.Request) => {
+        const { title } = req.data as { title?: string }
+        if (!title) return req.error(400, 'TITLE_REQUIRED', 'title')
+    }
 
-  register() {
-    this.srv.before('CREATE', Requests, this.validate.bind(this))
-    this.srv.on('bound action', Requests, 'myAction', this.myAction.bind(this))
-    this.srv.after('READ', Requests, this.enrich.bind(this))
-  }
-
-  private async validate(req: cds.Request) {
-    if (!req.data.title) return req.error(400, 'Title is required')
-  }
+    /** After READ: compute virtual fields */
+    enrich = (results: Requests[], req: cds.Request) => {
+        for (const row of Array.isArray(results) ? results : [results]) {
+            if (!row?.ID) continue
+            ;(row as any).myVirtualField = /* compute */ false
+        }
+    }
 }
+```
+
+Register in `MainService.ts`:
+
+```typescript
+const handler = new MyFeatureHandler()
+this.before(['CREATE', 'UPDATE'], 'Requests', handler.validate)
+this.after ('READ',               'Requests', handler.enrich)
 ```
 
 ### Useful Patterns
 
-**Access user context and XSUAA attributes:**
+**Access user context:**
 
 ```typescript
-const { user } = cds.context
-const region = user.attr?.region    // from XSUAA token attribute
-const locale = user.locale          // e.g. 'en_US'
+const userId    = cds.context?.user?.id
+const isManager = cds.context?.user?.is('RegionalManager')
+const locale    = cds.context?.user?.locale  // e.g. 'en_US' → slice(0,2) for S/4 language code
 ```
 
 **Read from an external S/4HANA API via CDS:**
 
 ```typescript
-const bpApi = await cds.connect.to('API_BUSINESS_PARTNER')
-const result = await bpApi.run(
-  SELECT.from('A_Supplier').where({ Supplier: id })
-)
+const bpApi  = await cds.connect.to('API_BUSINESS_PARTNER')
+const result = await bpApi.run(SELECT.from('A_Supplier').where({ Supplier: id }))
 ```
 
-**Use Cloud SDK for typed, resilient S/4HANA calls:**
+**Use Cloud SDK for direct S/4HANA HTTP calls:**
 
 ```typescript
-import { businessPartnerService } from './external/API_BUSINESS_PARTNER'
-const { supplierApi } = businessPartnerService()
-const supplier = await supplierApi
-  .requestBuilder()
-  .getByKey(supplierId)
-  .execute({ destinationName: 'S4HANA_DESTINATION' })
+import { executeHttpRequest } from '@sap-cloud-sdk/http-client'
+
+const response = await executeHttpRequest(
+    { destinationName: 'S4HANA_DESTINATION' },
+    { method: 'GET', url: `/sap/opu/odata/sap/API_BUSINESS_PARTNER/A_Supplier('${id}')`,
+      headers: { Accept: 'application/json' } }
+)
+const data = response.data.d as { DeletionIndicator?: boolean }
 ```
 
 **Raise a user-visible field-level error:**
 
 ```typescript
-req.error(400, 'Justification is required for amounts over 1000', 'justification')
+return req.error(400, 'MY_MESSAGE_KEY', 'fieldName')  // always use i18n keys from _i18n/messages*.properties
 ```
 
-### Key Conventions
+**Extract draft-action key (never pass `IsActiveEntity` to DB):**
 
-- **Types:** always import from `#cds-models/...` (auto-generated). Never hand-write entity types.
-- **Status criticality:** `syncStatusCriticality()` runs in every `after READ` in `RequestHandler`. Do not set `criticality` elsewhere — it will be overwritten.
-- **totalAmount recalculation:** triggered from `ItemHandler` after every item write. The parent `Requests` row is patched directly via `UPDATE`.
-- **Draft handling:** `Requests` and `Items` have parallel `*_drafts` shadow tables. Bound actions (submit, approve, reject) must handle both active and draft contexts.
-- **Localization in S/4 handlers:** parse user locale with `user.locale.slice(0, 2)` to get the ISO language code for S/4HANA text expansion queries.
+```typescript
+const { ID } = req.params[0] as { ID: string }   // IsActiveEntity is virtual — destructure only ID
+await UPDATE(Requests).set({ status_code: 'A' }).where({ ID })
+```
+
+**Force virtual fields into OData `$select`:**
+
+Fiori Elements builds `$select` only from visible table columns. Virtual fields used in annotations (`@Core.OperationAvailable`, etc.) are never added automatically. Use a `before('READ')` hook to inject them:
+
+```typescript
+injectRequiredColumns = (req: cds.Request): void => {
+    const query = req.query?.SELECT
+    if (!query?.columns) return  // wildcard SELECT (*) — nothing to inject
+
+    const cols = query.columns as Array<{ ref?: string[] }>
+    const has  = (name: string) => cols.some(c => c.ref?.at(-1) === name)
+
+    for (const field of ['status_code', 'isEditable', 'isApprover']) {
+        if (!has(field)) cols.push({ ref: [field] })
+    }
+}
+// register: this.before('READ', 'Requests', handler.injectRequiredColumns)
+```
+
+---
+
+## Key Conventions
+
+- **Types:** always import from `#cds-models/...` (auto-generated by `cds-typer`). Never hand-write entity types.
+- **Status codes:** `N`=New/Draft · `S`=Submitted · `A`=Approved · `R`=Rejected · `C`=Cancelled. Criticality is defined in the `Statuses` code-list via a CDS `case` expression — do not compute it in handlers.
+- **`totalAmount` recalculation:** triggered from `ItemHandler` after every item draft write (`after ['CREATE','UPDATE','DELETE'] on 'Items.drafts'`). The parent `Requests.drafts` row is patched via `UPDATE`.
+- **Draft shadow tables:** `Requests.drafts` / `Items.drafts` mirror the active tables. Bound actions (`submitRequest`, `approveRequest`, etc.) operate on active entities only — they are annotated `@odata.draft.bypass` and skip the draft lifecycle.
+- **Localization in S/4 handlers:** `user.locale.slice(0, 2)` → ISO language code for S/4HANA text expansion (`Language: 'EN'`).
+- **`UI.UpdateHidden` and dynamic expressions:** do NOT use a `$Path`-based expression with `UI.UpdateHidden` at entity level. The List Report evaluates it once at entity-type level (no instance) → path resolves to `null` → Edit button permanently hidden. Use `beforeSave` to guard non-N saves server-side instead.
+- **`beforeSave` is the authoritative status gate:** since `UI.UpdateHidden` is not set, `before('SAVE', 'Requests')` is where non-N saves are blocked. The handler reads the current active status before allowing draft activation.
 
 ---
 
 ## Scripts
 
-| Script | Command |
-|---|---|
-| Dev server (live reload) | `cds watch` |
-| Dev + open Fiori app | `npm run watch-requestsui` |
-| Regenerate TS types | `cds-typer '*' --outputDirectory @cds-models` |
-| Production build | `npm run build` (runs `mbt build`) |
-| Deploy to BTP CF | `cf deploy mta_archives/CAPMAP_1.0.0.mtar` |
+| Script | Command | Notes |
+|---|---|---|
+| Dev server (live reload) | `cds watch` | SQLite, mock auth, port 4004 |
+| Dev + open Fiori app | `npm run watch-requestsui` | Auto-opens browser |
+| Seed test attachments | `npm run seed:attachments` | Attaches `test/fixtures/test_invoice.pdf` to all requests |
+| Regenerate TS types | `node node_modules/@cap-js/cds-typer/lib/cli.js "*" --outputDirectory @cds-models` | Run after any `.cds` model change |
+| Production build | `npm run build` | Runs `mbt build` → `.mtar` archive |
+| Deploy to BTP CF | `cf deploy mta_archives/CAPMAP_1.0.0.mtar` | |
+
+> **Windows note:** use the `node node_modules/@cap-js/cds-typer/...` form for `cds-typer`. Running `node node_modules/.bin/cds-typer` crashes with a shebang parse error on Windows.
 
 ---
 
 ## Troubleshooting
 
 **TypeScript types not found after a model change**  
-Run `cds-typer '*' --outputDirectory @cds-models`.
+Run `node node_modules/@cap-js/cds-typer/lib/cli.js "*" --outputDirectory @cds-models`.
+
+**Virtual fields (`isApprover`, `isEditable`) are `undefined` on the client**  
+Fiori's `$select` doesn't include fields that aren't rendered as table columns. `injectRequiredColumns` (registered as `before('READ', 'Requests')`) forces them in. Check that it's still registered in `MainService.ts`.
+
+**Edit button missing from the List Report table**  
+Do not annotate the entity with `UI.UpdateHidden: { $edmJson: { $Path: '...' } }`. A dynamic path expression is evaluated without a row instance in the List Report context and always resolves to `null` / `true` → Edit hidden. Remove `UI.UpdateHidden` and use `beforeSave` for the server-side guard.
 
 **Supplier validation always fails locally**  
-Check `.cdsrc.json` for the `API_BUSINESS_PARTNER` sandbox URL and verify `S4HANA_API_KEY` is set in `.env`.
+Check `.cdsrc.json` for the `API_BUSINESS_PARTNER` sandbox URL and verify `S4HANA_API_KEY` is set in `.env`. If the destination is absent, `validateSupplierBeforeSave` warns and allows save (graceful degradation — only blocks on actual HTTP errors).
 
 **AI justification returns an error**  
-Verify `GEMINI_API_KEY` is in `.env` and the Gemini API is enabled in your Google Cloud project.
+Verify `GEMINI_API_KEY` is in `.env` and the Gemini API is enabled in your Google Cloud project. The model is `gemini-3-flash-preview`.
 
-**Stale draft data after a schema change**  
-Delete the local SQLite file to reset all state: `rm db.sqlite`
+**Stale draft data or schema mismatch after a model change**  
+Delete the local SQLite file to reset all state: `rm db.sqlite` (or delete manually). Then re-run `npm run seed:attachments` to restore test data.
 
 **MTA build fails**  
 Ensure all workspace dependencies are installed (`npm install` from the root) and `mbt` is available (`npx mbt --version`).
 
 **Cost centers or products show no description**  
 The S/4HANA sandbox may be unavailable. `CostCenterHandler` falls back to mock data; `ProductHandler` returns items without descriptions and logs a warning.
+
+**OData error: `Invalid resource path "Requests:items.<virtualField>"`**  
+A virtual field is listed in `TargetProperties` of `@Common.SideEffects`. Remove it — `TargetEntities: ['']` triggers a full re-read that recomputes virtual fields automatically. Listing them in `TargetProperties` causes the OData parser to construct an invalid cross-navigation path.

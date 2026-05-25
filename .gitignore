@@ -16,3 +16,5 @@ dist/
 *.mta
 default-env.json
 .claude
+# Binary test fixtures — local dev seeding only, not for git
+test/fixtures/
