@@ -18,13 +18,17 @@ export default class RequestService extends cds.ApplicationService {
         const productHandler = new ProductHandler(productApi);
 
         // --- Requests ---
+        this.before('UPDATE', 'Requests', requestHandler.beforeUpdate);
         this.before(['CREATE', 'UPDATE'], 'Requests', requestHandler.validateOnWrite);
         this.before('READ', 'Requests', requestHandler.injectRequiredColumns);
         this.after('READ', 'Requests', requestHandler.afterRead);
         this.before('SAVE', 'Requests', requestHandler.beforeSave);
         this.before('SAVE', 'Requests', requestHandler.validateSupplierBeforeSave);
 
-        this.on('submitRequest',  'Requests', requestHandler.submitRequest);
+        // submitRequest is registered ONLY on the active entity. From edit mode Fiori first
+        // calls draftActivate (firing our before('SAVE') validations) then invokes the action
+        // on the now-active entity — so the post-action refresh targets a URL that still exists.
+        this.on('submitRequest', 'Requests', requestHandler.submitRequest);
         this.on('approveRequest', 'Requests', requestHandler.approveRequest);
         this.on('rejectRequest', 'Requests', requestHandler.rejectRequest);
         this.on('cancelRequest', 'Requests', requestHandler.cancelRequest);
@@ -32,6 +36,8 @@ export default class RequestService extends cds.ApplicationService {
         this.on('generateAIJustification', 'Requests.drafts', requestHandler.generateAIJustification);
 
         // --- Items (draft composition) ---
+        this.before('READ', 'Items', itemHandler.injectRequiredColumns);
+        this.after('READ', 'Items', itemHandler.afterRead);
         this.after(
             ['CREATE', 'UPDATE', 'DELETE'],
             'Items.drafts',

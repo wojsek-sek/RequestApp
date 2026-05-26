@@ -246,10 +246,18 @@ annotate service.Requests with @(
     ],
 
     UI.Identification: [
-            // Submit: visible only for New (N) status — the primary progression action
+            // Submit: visible only on the ACTIVE record with status New (N).
+            //   Hidden in draft (edit) mode because Submit transitions the entity out of
+            //   draft — the draft row is deleted as a side effect, which leaves Fiori bound
+            //   to a non-existent draft URL → "Not Found". Matching the SAP Travel-sample
+            //   pattern, the user must Save the draft first; the button then appears on the
+            //   active view and Submit runs on a stable URL.
             { $Type: 'UI.DataFieldForAction', Action: 'RequestService.submitRequest',
               Label: '{i18n>Submit}', Criticality: 3,
-              ![@UI.Hidden]: { $edmJson: { $Ne: [{ $Path: 'status_code' }, 'N'] } }
+              ![@UI.Hidden]: { $edmJson: { $Or: [
+                  { $Ne: [{ $Path: 'status_code' }, 'N'] },
+                  { $Eq: [{ $Path: 'IsActiveEntity' }, false] }
+              ]}}
             },
             // Approve/Reject: visible only when isApprover=true (RegionalManager, not the creator, status=S)
             { $Type: 'UI.DataFieldForAction', Action: 'RequestService.approveRequest', Label: '{i18n>Approve}', Criticality: 3,
@@ -278,13 +286,16 @@ annotate service.Requests with @(
     // This covers two cases in one field:
     //   - Viewer (readonly-user): isEditable is always false → buttons never appear
     //   - RegionalManager viewing a Submitted/Approved/Rejected request: status ≠ N → false
+    //
+    // NOTE: We deliberately do NOT use Capabilities.UpdateRestrictions with $Path:'isEditable'.
+    //   1. isEditable is undefined on draft reads (handler registered on 'Requests', not 'Requests.drafts')
+    //      → Updatable evaluates to falsy in edit mode → all fields become read-only.
+    //   2. OData propagates the path to the items composition when re-reading after a side-effect
+    //      → URL parser emits: Invalid resource path "Requests:items.isEditable".
+    // The Edit button is gated by UI.UpdateHidden above; bypass PATCH is blocked server-side by
+    // RequestHandler.beforeUpdate.
     UI.UpdateHidden : { $edmJson: { $Not: [{ $Path: 'isEditable' }] } },
-    UI.DeleteHidden : true,
-
-    Capabilities.UpdateRestrictions: {
-        Updatable: { $edmJson: { $Path: 'isEditable' } }
-    }
-    
+    UI.DeleteHidden : true
 );
 
 // Value helps + UI behavior
@@ -565,7 +576,14 @@ annotate RequestService.Requests with actions {
     // Gray out toolbar action buttons when selected rows don't satisfy the condition.
     // Fiori Elements evaluates @Core.OperationAvailable per selected row and disables
     // the button if ANY row returns false.
-    submitRequest   @Core.OperationAvailable : { $edmJson: { $Eq: [{ $Path: 'status_code' }, 'N'] }};
+    //
+    // Submit: only available on ACTIVE rows with status N (see UI.Hidden above for the
+    // rationale — running Submit on a draft would delete the draft mid-action and leave
+    // Fiori bound to a non-existent URL).
+    submitRequest   @Core.OperationAvailable : { $edmJson: { $And: [
+        { $Eq: [{ $Path: 'status_code' }, 'N'] },
+        { $Eq: [{ $Path: 'IsActiveEntity' }, true] }
+    ]}};
     approveRequest  @Core.OperationAvailable : { $edmJson: { $Path: 'isApprover' } };
     rejectRequest   @Core.OperationAvailable : { $edmJson: { $Path: 'isApprover' } };
 

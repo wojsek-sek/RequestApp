@@ -156,4 +156,10 @@ Ensure all workspace dependencies are installed (`npm install` from the root) an
 The S/4HANA sandbox may be unavailable. `CostCenterHandler` falls back to mock data; `ProductHandler` returns items without descriptions and logs a warning.
 
 **OData error: `Invalid resource path "Requests:items.<virtualField>"`**  
-A virtual field is listed in `TargetProperties` of `@Common.SideEffects`. Remove it — `TargetEntities: ['']` triggers a full re-read that recomputes virtual fields automatically. Listing them in `TargetProperties` causes the OData parser to construct an invalid cross-navigation path.
+Three known triggers:
+1. A virtual field is listed in `TargetProperties` of `@Common.SideEffects`. Remove it — `TargetEntities: ['']` triggers a full re-read that recomputes virtual fields automatically.
+2. `Capabilities.UpdateRestrictions: { Updatable: { $Path: '<virtualField>' } }` is set on the parent entity. When OData re-reads with items expansion (e.g. after `RecalculateTotal`), it propagates the path to the items navigation → invalid path. Use `UI.UpdateHidden` for Edit button gating and a `before('UPDATE', '<Entity>')` handler for server-side PATCH protection instead.
+3. `UI.UpdateHidden: { $Path: '<virtualField>' }` is set on the parent entity AND the field exists on the parent but not on the child composition. When Fiori enters edit mode it propagates the path to the items collection (`Requests(ID)/items?$select=isEditable`) and the OData parser rejects it. Fix: duplicate the virtual field on the child projection (e.g. add `virtual isEditable : Boolean` to `Items`) and populate it from an `after('READ', '<Child>')` handler so the path resolves on both sides.
+
+**All fields become read-only in edit mode (draft)**  
+Caused by `Capabilities.UpdateRestrictions: { Updatable: { $Path: 'isEditable' } }` combined with `before('READ')`/`after('READ')` handlers registered on `'Requests'` only. Draft reads target `'Requests.drafts'` — a separate entity — so the handlers never fire and `isEditable` arrives as `undefined`. Fiori treats undefined `Updatable` as falsy → all fields read-only. Fix: remove `Capabilities.UpdateRestrictions` entirely; the `beforeUpdate` server-side guard already blocks non-N PATCHes.

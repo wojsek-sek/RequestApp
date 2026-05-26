@@ -74,6 +74,8 @@ CAPMAP/
 **Items** (line-item entity, `cuid`):
 - `productId`, `description`, `quantity`, `price`, `itemTotal` (calculated)
 - `category` → `Categories` code-list, `supplierId` (S/4 Business Partner ref)
+- `request.status.code as status_code` — projected from parent (read-only)
+- `virtual isEditable : Boolean` — mirrors the parent's `isEditable` rule; needed so the parent's `UI.UpdateHidden` path resolves cleanly when Fiori propagates it to the items composition (`ItemHandler.afterRead` + `ItemHandler.injectRequiredColumns` populate and inject it)
 
 **Code-lists**: `Statuses` — N New · S Submitted · A Approved · R Rejected · C Cancelled (criticality via CDS `case` in schema). `Categories` — IT · FU · MA · SW.
 
@@ -95,7 +97,7 @@ Key projections and restrictions:
 **OData aggregation** enabled: groupby (status, costCenter, currency), sum/min/max on totalAmount, countdistinct on ID. Powers the analytics charts.
 
 **Bound actions on Requests**:
-- `submitRequest()` — validates attachment present, runs AI compliance check, sets N→S (AI may set A or R directly)
+- `submitRequest()` — registered on **both** `Requests` and `Requests.drafts` (safety net for API callers); **UI button hidden when `IsActiveEntity=false`** so it can only be triggered from the active entity context. Validation order: status guard → field rules (title, justification) → supplier DeletionIndicator check (all items) → attachment required → AI compliance → set N→S (AI may set A/R directly). `@Core.OperationAvailable` requires both `status_code=N` AND `IsActiveEntity=true`. If called programmatically on a draft (`IsActiveEntity=false`), the handler activates the draft first via `svc.tx(req).send('SAVE', 'Requests', { ID })`.
 - `approveRequest()` — sets status=A, records approver + date (SoD: must be RegionalManager and not the creator)
 - `rejectRequest(reason)` — sets status=R, records approver + date + rejectReason
 - `cancelRequest(reason)` — allowed from N or S; sets status=C, records cancelReason
@@ -127,15 +129,27 @@ this.after ('READ',   'Requests', h.enrich)
 **Key business rules in `RequestHandler.ts`**:
 - `justification` required when `totalAmount > 1000`
 - `title` min length 5 chars
-- Supplier `DeletionIndicator` check via Cloud SDK before save (graceful degradation in dev)
+- Supplier `DeletionIndicator` check via Cloud SDK — runs during `beforeSave` (drafts table) AND during `submitRequest` (active table)
 - After item PATCH/POST/DELETE: `ItemHandler` recalculates `Requests.totalAmount`
+- Shared private helpers `checkFields(data, req)` and `checkSupplier(requestId, itemsTable, req)` used by both `beforeSave`/`validateSupplierBeforeSave` and `submitRequest`; each returns `boolean` (false = error queued)
+- `checkSupplier` validates **all** unique `supplierId` values across all items (not just the first). Uses `Set`-based deduplication + `Promise.all` for parallel S/4 calls via private `validateOneSupplier()`. Silently returns `true` (no user warning) when no items have a `supplierId` assigned — this is a normal state, not an error.
+
+**Key rules in `ItemHandler.ts`**:
+- `afterRead` — populates `isEditable` per item row (same rule as Requests: RegionalManager + status N)
+- `injectRequiredColumns` — forces `status_code` + `isEditable` into items `$select` (Fiori omits virtual fields)
+- `patchRecalculateItemTotal` — merges PATCH delta for quantity/price with server-side `itemTotal`
+- `recalculateRequestTotalAfterDraftChange` — recomputes parent `Requests.drafts.totalAmount` after any item draft CUD
 
 **Draft-enabled entity key extraction** (critical pattern):
 ```typescript
-// req.params[0] for draft entities includes { ID, IsActiveEntity: true }
-// IsActiveEntity is virtual — NEVER pass it to a DB WHERE clause
-const { ID } = req.params[0] as { ID: string }  // extract only what you need
-await UPDATE(Requests).set({ ... }).where({ ID })
+// req.params[0] for draft entities includes { ID, IsActiveEntity: true/false }
+// IsActiveEntity is virtual — NEVER pass it to a DB WHERE clause.
+// It CAN be read from params to detect draft vs active context:
+const params = req.params[0] as { ID: string; IsActiveEntity?: boolean | string };
+const { ID } = params;
+const isDraft = params.IsActiveEntity === false || params.IsActiveEntity === 'false';
+// then use ID only for DB queries:
+await UPDATE(Requests).set({ ... }).where({ ID });
 ```
 
 **Querying attachments in handlers**:
@@ -239,7 +253,7 @@ import { executeHttpRequest } from '@sap-cloud-sdk/http-client'
 - Header facets: Status DataPoint + TotalAmount DataPoint
 - Object page facets: GeneralInfo, Justification (multiline), AI Audit Results, Attachments (plugin), Items table
 - Attachments facet targets `attachments/@UI.LineItem` — provided automatically by `@cap-js/attachments`, no manual annotation needed
-- Action visibility: Submit (status=N), Approve/Reject (isApprover=true), Cancel (N or S), Withdraw (S)
+- Action visibility: Submit (status=N **and** `IsActiveEntity=true` — hidden in draft edit mode), Approve/Reject (isApprover=true), Cancel (N or S), Withdraw (S)
 - `generateAIJustification` has `@Common.SideEffects` → refreshes justification field
 - Charts: RequestsByStatus (donut), AmountByCostCenter (column)
 - Visual filters on List Report: Status (bar), CostCenter (bar)
@@ -318,5 +332,11 @@ cf deploy mta_archives/CAPMAP_1.0.0.mtar
 - **mbt build** requires the `mbt` npm package and Cloud Foundry CLI + `cf deploy` plugin.
 - **MCP servers** (Windows): restart Claude Code from `C:\Dev\CAPMAP` if cap/ui5/fiori tools are missing. Do not use `npx` — use `node` with direct script paths.
 - **Virtual fields in `$select`**: Fiori builds `$select` from rendered columns only. Virtual fields (`isEditable`, `isApprover`) used purely in annotation expressions are never added by Fiori. The `injectRequiredColumns` method (registered as `before('READ', 'Requests')`) forces them into every explicit `$select` so `afterRead` values actually reach the client.
-- **`UI.UpdateHidden` with dynamic `$Path`**: Do NOT annotate the entity with `UI.UpdateHidden: { $edmJson: { $Path: '...' } }`. In the List Report the expression is evaluated once at entity-type level (no row instance) → `status_code` resolves to `null` → `$Ne(null,'N') = true` → Edit button permanently hidden for all rows. Keep `UI.UpdateHidden` unset; use `beforeSave` as the server-side status gate instead.
-- **`beforeSave` is the status gate**: Since `UI.UpdateHidden` is not set, the `before('SAVE', 'Requests')` handler is the authoritative guard that prevents non-N requests from being saved via the edit flow. It reads the active entity's `status_code` and rejects with `EDIT_NOT_ALLOWED_FOR_CURRENT_STATUS` if it's not N.
+- **`UI.UpdateHidden` with dynamic `$Path`**: Only works when the referenced field is in every row's `$select`. We rely on `injectRequiredColumns` to force `status_code`, `isEditable`, `isApprover` into Fiori's `$select` (Fiori never requests virtual-only fields on its own). If you reference a field via `$Path` in `UI.UpdateHidden`, make sure it is in the injected `REQUIRED` list — otherwise the expression resolves to `null` and Edit is permanently hidden.
+- **`beforeSave` is the draft-activation gate**: `before('SAVE', 'Requests')` rejects non-N saves during draft activation (the "Save" button). It reads the current active `status_code` and errors with `EDIT_NOT_ALLOWED_FOR_CURRENT_STATUS`.
+- **`beforeUpdate` blocks bypass inline edit**: `@odata.draft.bypass` lets Fiori PATCH active entities directly, skipping the draft lifecycle (`beforeSave` does not fire for bypass PATCHes). `before('UPDATE', 'Requests')` (registered as `requestHandler.beforeUpdate`) reads `status_code` from the active row and rejects non-N PATCHes. Does NOT fire for draft PATCHes (those target `Requests.drafts`) or for handler-internal CQL `UPDATE(Requests)…` calls (DB-level, bypasses service hooks).
+- **`@odata.draft.bypass` actions must be registered on `Requests.drafts` too**: Fiori calls bypass actions directly on the draft entity (not the active one) when the user is in edit mode. Without the drafts registration you get `Service has no handler for "action RequestService.Requests.drafts"`. Register with array syntax: `this.on('action', ['Requests', 'Requests.drafts'], handler)`. When called from draft context (`IsActiveEntity === false`), activate the draft first using `await svc.tx(req).send('SAVE', 'Requests', { ID })` — CAP's `lean-draft.js` maps `'SAVE'` to `draftActivate`, which copies all draft fields to the active entity, runs `beforeSave` (validation), and deletes the draft rows. After that the action continues against the now-current active entity.
+- **`submitRequest` must not be called from draft context via the UI**: `@Common.SideEffects.TargetEntities: ['']` on the action tells Fiori to re-read the binding URL after the action. If the action is triggered from a draft URL (`IsActiveEntity=false`) and the handler activates (and deletes) the draft, that re-read hits a deleted URL → 404. Fix: hide the Submit button when `IsActiveEntity=false` using `![@UI.Hidden]: { $edmJson: { $Or: [{ $Ne: ... }, { $Eq: [{ $Path: 'IsActiveEntity' }, false] }] } }` and set `@Core.OperationAvailable` to require `IsActiveEntity=true`. The dual registration on `Requests.drafts` is kept as a server-side API safety net only.
+- **`checkSupplier` warning anti-pattern**: Do NOT call `req.warn()` when no suppliers are assigned to items. This fires on every save (including innocuous title edits in the List Report mass-edit toolbar) and pollutes the UI with misleading messages. Having zero supplier IDs is valid — silently `return true`.
+- **`Capabilities.UpdateRestrictions` with `$Path: 'isEditable'` is a trap**: causes two failures — (1) OData propagates the path to the `items` composition during side-effect re-reads → `Invalid resource path "Requests:items.isEditable"` 404; (2) draft reads don't fire the `'Requests'`-scoped `afterRead` handler, so `isEditable` arrives as `undefined` → `Updatable` evaluates to falsy → every field becomes read-only in edit mode. Rely on `UI.UpdateHidden` (button visibility) + `beforeUpdate` (server-side PATCH guard) instead.
+- **`UI.UpdateHidden: { $Path: 'isEditable' }` also propagates into items**: Even with `Capabilities.UpdateRestrictions` removed, Fiori sends `Requests(ID)/items?$select=isEditable` in edit mode → 404 if the field isn't on `Items`. Fix is to also project `virtual isEditable : Boolean` on `Items` and populate it from `ItemHandler.afterRead` (mirrors the parent rule: RegionalManager + status N). `ItemHandler.injectRequiredColumns` forces `status_code` + `isEditable` into the items `$select` so the handler can compute it.

@@ -28,6 +28,30 @@ interface S4SupplierData {
 /** Requests entity: validation, bound actions, draft-save supplier check. */
 export class RequestHandler {
 
+    /**
+     * Block direct PATCH to active non-N requests.
+     *
+     * Fires for OData PATCH/PUT to active entity instances only — not for draft
+     * patches (those target `Requests.drafts`) and not for DB-level CQL UPDATEs
+     * issued inside action handlers (those bypass service event hooks entirely).
+     * Draft activation SAVE is covered separately by `beforeSave`.
+     *
+     * This guard is the enforcement layer for `@odata.draft.bypass` inline edits
+     * that skip the draft lifecycle.
+     */
+    beforeUpdate = async (req: cds.Request) => {
+        const { ID } = (req.params?.[0] ?? {}) as { ID?: string };
+        if (!ID) return;
+
+        const current = await SELECT.one.from(Request)
+            .columns('status_code')
+            .where({ ID });
+
+        if (current?.status_code && current.status_code !== 'N') {
+            return req.error(400, 'EDIT_NOT_ALLOWED_FOR_CURRENT_STATUS');
+        }
+    };
+
     /** Title length, justification for high amounts, positive total. */
     validateOnWrite = async (req: cds.Request) => {
         const { totalAmount, justification, title } = req.data as Partial<Request>;
@@ -137,36 +161,147 @@ export class RequestHandler {
         return SELECT.one.from(Request).where({ ID });
     };
 
-    /** Runs on draft activation (Fiori "Save"). Basic validation only — status stays N. */
+    // ─── Private validation helpers (shared between beforeSave and submitRequest) ───
+
+    /**
+     * Validate field-level business rules (title length, justification threshold).
+     * Returns false and queues an error when a rule is violated; true otherwise.
+     * Used in both beforeSave (draft data) and submitRequest (active entity data).
+     */
+    private checkFields = (data: Partial<Request>, req: cds.Request): boolean => {
+        if (data.title && data.title.length < 5) {
+            req.error(400, 'TITLE_TOO_SHORT', 'title');
+            return false;
+        }
+        if ((data.totalAmount ?? 0) > 1000 && !data.justification) {
+            req.error(400, 'JUSTIFICATION_REQUIRED_FOR_HIGH_AMOUNT', 'justification');
+            return false;
+        }
+        return true;
+    };
+
+    /**
+     * Validate every distinct supplier referenced by the request's items against S/4HANA.
+     * Returns false and queues an error if ANY supplier is blocked or not found;
+     * true on success or graceful degradation (no destination, no items with suppliers).
+     *
+     * Pass `'RequestService.Items.drafts'` during draft activation (beforeSave)
+     * or `'RequestService.Items'` during submit (draft already activated by CAP).
+     *
+     * - Items without a supplierId are skipped silently — the catalog allows mixed lines.
+     * - Duplicate supplier IDs across items are deduped so each supplier is checked once.
+     * - Validation runs in parallel; the first hard error short-circuits the result, but
+     *   we still let all in-flight calls settle to surface every problem to the user.
+     * - If the destination is missing (local dev), all checks degrade gracefully to allow.
+     */
+    private checkSupplier = async (requestId: string, itemsTable: string, req: cds.Request): Promise<boolean> => {
+        const items = await SELECT.from(itemsTable).where({ request_ID: requestId }) as Item[];
+
+        const supplierIds = Array.from(new Set(
+            items.map(item => item.supplierId).filter((id): id is string => !!id)
+        ));
+
+        if (supplierIds.length === 0) {
+            return true;
+        }
+
+        const results = await Promise.all(
+            supplierIds.map(supplierId => this.validateOneSupplier(supplierId, req))
+        );
+
+        return results.every(ok => ok);
+    };
+
+    /** Per-supplier S/4HANA check; isolates per-supplier error reporting from checkSupplier. */
+    private validateOneSupplier = async (supplierId: string, req: cds.Request): Promise<boolean> => {
+        try {
+            console.log(`[SDK] Validating supplier: ${supplierId}...`);
+            const response = await executeHttpRequest(
+                { destinationName: 'S4HANA_DESTINATION' },
+                {
+                    method:  'GET',
+                    url:     `/sap/opu/odata/sap/API_BUSINESS_PARTNER/A_Supplier('${supplierId}')`,
+                    headers: { Accept: 'application/json' },
+                }
+            );
+            const supplierData = response.data.d as S4SupplierData;
+            const supplierLabel = supplierData.SupplierName ?? supplierId;
+            if (supplierData.DeletionIndicator === true) {
+                req.error(400, 'SUPPLIER_BLOCKED', 'supplierId', [supplierLabel]);
+                return false;
+            }
+            return true;
+        } catch (error: unknown) {
+            const e = error as { message?: string; response?: { status?: number } };
+            if (!e.response) {
+                // No HTTP response = destination not configured (local dev) — allow and warn.
+                console.warn(`[SDK] S/4HANA unreachable, skipping supplier check for ${supplierId}: ${e.message ?? 'unknown'}`);
+                return true;
+            }
+            console.error('[SDK ERROR] S/4HANA returned an error:', e.message);
+            if (e.response.status === 404) {
+                req.error(400, 'SUPPLIER_NOT_FOUND', undefined, [supplierId]);
+            } else {
+                req.error(500, 'CLOUD_SDK_ERROR');
+            }
+            return false;
+        }
+    };
+
+    // ────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Draft activation gate ("Save" button).
+     * 1. Blocks saving a non-N request (only N can be edited).
+     * 2. Applies field validations (title, justification threshold).
+     * Supplier check runs in a separate handler registered after this one.
+     */
     beforeSave = async (req: cds.Request) => {
         const data = req.data as Partial<Request>;
         if (!data.ID) return;
 
-        // Guard: only N-status (Draft) requests can be saved via the edit flow.
-        // S/A/R/C transitions happen exclusively through the explicit bound actions.
-        // UI.UpdateHidden is NOT used in annotations (it breaks the List Report Edit button),
-        // so this server-side check is the authoritative gate.
+        // Only N-status requests may be saved via the edit flow.
         const current = await SELECT.one.from(Request).columns('status_code').where({ ID: data.ID });
-        if (current && current.status_code && current.status_code !== 'N') {
+        if (current?.status_code && current.status_code !== 'N') {
             return req.error(400, 'EDIT_NOT_ALLOWED_FOR_CURRENT_STATUS');
         }
 
-        if (data.title && data.title.length < 5) {
-            return req.error(400, 'TITLE_TOO_SHORT', 'title');
-        }
-        if ((data.totalAmount ?? 0) > 1000 && !data.justification) {
-            return req.error(400, 'JUSTIFICATION_REQUIRED_FOR_HIGH_AMOUNT', 'justification');
-        }
+        this.checkFields(data, req);
         // status_code intentionally NOT set here — it stays N (the schema default).
     };
 
     /**
      * Submit a New request into the approval workflow.
-     * Validates: attachment present, then runs AI compliance check.
-     * Sets status N→S (AI may set A or R directly if confidence is high).
+     *
+     * Registered on both `Requests` and `Requests.drafts`. The Fiori Submit button is
+     * hidden while in draft mode (see annotations: UI.Hidden + Core.OperationAvailable
+     * both require IsActiveEntity=true), so in normal UI usage this handler only fires
+     * from the active context.
+     *
+     * The `if (isDraftContext)` branch below is a safety net for direct API calls that
+     * could still reach the action via the draft URL (curl, integration tests). Without
+     * it, a draft-context call would read the stale active row and silently lose any
+     * pending field edits sitting in the draft.
+     *
+     * Validation order (mirrors save-time checks so nothing can be bypassed via direct submit):
+     *   0. (Draft context only) Activate the draft to commit pending field changes
+     *   1. Status guard — only N requests can be submitted
+     *   2. Field validations — title length, justification required for high amounts
+     *   3. Supplier check — S/4HANA DeletionIndicator on every item supplier (active Items table)
+     *   4. Attachment required — at least one file must be present
+     *   5. AI compliance check (graceful degradation)
      */
     submitRequest = async (req: cds.Request) => {
-        const { ID } = req.params[0] as { ID: string };
+        const params = req.params[0] as { ID: string; IsActiveEntity?: boolean | string };
+        const { ID } = params;
+        const isDraftContext = params.IsActiveEntity === false || params.IsActiveEntity === 'false';
+
+        // 0. Safety net — only fires for non-UI callers; the Submit button is hidden in
+        //    draft mode so the standard Fiori flow always enters here on the active context.
+        if (isDraftContext) {
+            const svc = (cds.services as Record<string, cds.ApplicationService>)['RequestService'];
+            await (svc as any).tx(req).send('SAVE', 'Requests', { ID });
+        }
 
         // 1. Guard — only New requests can be submitted
         const current = await SELECT.one.from(Request).where({ ID });
@@ -175,7 +310,15 @@ export class RequestHandler {
             return req.error(400, 'SUBMIT_ONLY_ALLOWED_FOR_NEW');
         }
 
-        // 2. Require at least one attachment
+        // 2. Field validations (same rules as beforeSave; re-checked here so they
+        //    cannot be bypassed by calling submit without saving the draft first)
+        if (!this.checkFields(current as Partial<Request>, req)) return;
+
+        // 3. Supplier check on every item — by this point items live in the active table
+        //    (either Fiori save-then-submit, or the safety-net activation above).
+        if (!await this.checkSupplier(ID, 'RequestService.Items', req)) return;
+
+        // 4. Require at least one attachment
         const attachments = await SELECT.from(Requests.attachments)
             .where({ up__ID: ID }) as Requests.attachment[];
         if (!attachments.length) {
@@ -227,58 +370,16 @@ export class RequestHandler {
         return SELECT.one.from(Request).where({ ID });
     };
 
-    /** Supplier existence and block check against S/4HANA before activating draft. */
+    /**
+     * Supplier check registered on before('SAVE') — runs during draft activation.
+     * Items live in Items.drafts at this point; delegates to the shared checkSupplier helper.
+     */
     validateSupplierBeforeSave = async (req: cds.Request) => {
-        const itemKey = (req.params?.[0] ?? {}) as { request_ID?: string };
         const requestId: string | undefined =
-            (req.data as Partial<Request>)?.ID ?? itemKey.request_ID;
-
+            (req.data as Partial<Request>)?.ID ??
+            ((req.params?.[0] ?? {}) as { request_ID?: string }).request_ID;
         if (!requestId) return;
-
-        const firstItem = await SELECT.one
-            .from('RequestService.Items.drafts')
-            .where({ request_ID: requestId }) as Item | null;
-
-        if (!firstItem?.supplierId) {
-            req.warn('NO_SUPPLIER_TO_VALIDATE');
-            return;
-        }
-
-        try {
-            console.log(`[SDK] Validating supplier: ${firstItem.supplierId}...`);
-
-            const response = await executeHttpRequest(
-                { destinationName: 'S4HANA_DESTINATION' },
-                {
-                    method:  'GET',
-                    url:     `/sap/opu/odata/sap/API_BUSINESS_PARTNER/A_Supplier('${firstItem.supplierId}')`,
-                    headers: { Accept: 'application/json' },
-                }
-            );
-
-            const supplierData = response.data.d as S4SupplierData;
-            const supplierLabel = supplierData.SupplierName ?? firstItem.supplierId;
-
-            if (supplierData.DeletionIndicator === true) {
-                return req.error(400, 'SUPPLIER_BLOCKED', 'supplierId', [supplierLabel]);
-            }
-        } catch (error: unknown) {
-            const e = error as { message?: string; response?: { status?: number } };
-
-            if (!e.response) {
-                // No HTTP response = destination not configured or network unreachable.
-                // In local dev S4HANA_DESTINATION is absent — warn and allow save to proceed.
-                console.warn(`[SDK] S/4HANA unreachable, skipping supplier check: ${e.message ?? 'unknown'}`);
-                return;
-            }
-
-            console.error('[SDK ERROR] S/4HANA returned an error:', e.message);
-            if (e.response.status === 404) {
-                req.error(400, 'SUPPLIER_NOT_FOUND', undefined, [firstItem.supplierId]);
-            } else {
-                req.error(500, 'CLOUD_SDK_ERROR');
-            }
-        }
+        await this.checkSupplier(requestId, 'RequestService.Items.drafts', req);
     };
 
     /**

@@ -29,6 +29,42 @@ export class ItemHandler {
             .where({ ID: requestId });
     };
 
+    /**
+     * Populate the virtual `isEditable` flag on each item row.
+     *
+     * Mirrors the parent request's editability rule: RegionalManager + status N.
+     * The flag is duplicated on Items (rather than read only from the parent) so
+     * the parent's `UI.UpdateHidden: { $Path: 'isEditable' }` resolves cleanly
+     * when Fiori propagates the path into the items composition (otherwise the
+     * OData parser rejects `Requests:items.isEditable` with a 404).
+     */
+    afterRead = (results: unknown, req: cds.Request) => {
+        const isManager = cds.context?.user?.is('RegionalManager');
+        const items = Array.isArray(results) ? results : [results];
+        for (const item of items) {
+            if (!item || !(item as any).ID) continue;
+            (item as any).isEditable = !!(isManager && (item as any).status_code === 'N');
+        }
+    };
+
+    /**
+     * Ensure `status_code` and `isEditable` are present in every items $select.
+     *
+     * Fiori only requests rendered columns; the virtual `isEditable` (used by
+     * propagated UpdateHidden) and the underlying `status_code` it depends on
+     * are never added automatically. Without injection `afterRead` would have
+     * no `status_code` to evaluate.
+     */
+    injectRequiredColumns = (req: cds.Request): void => {
+        const query = req.query?.SELECT;
+        if (!query?.columns) return;
+        const cols = query.columns as Array<{ ref?: string[] }>;
+        const has  = (name: string) => cols.some(c => c.ref?.at(-1) === name);
+        for (const field of ['status_code', 'isEditable'] as const) {
+            if (!has(field)) cols.push({ ref: [field] });
+        }
+    };
+
     /** Merge PATCH for quantity/price with server-side itemTotal (delta-friendly). */
     patchRecalculateItemTotal = async (req: cds.Request) => {
         if (!('quantity' in (req.data as any)) && !('price' in (req.data as any))) {

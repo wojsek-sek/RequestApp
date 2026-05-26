@@ -35,16 +35,26 @@ service RequestService {
         virtual isEditable : Boolean,   // true when user has RegionalManager role AND status is N (Draft)
         *
     } actions {
-        // Submit a New request — validates attachment, runs AI compliance, sets status N→S
-        @odata.draft.bypass
+        // Submit a New request — validates attachment, runs AI compliance, sets status N→S.
+        //
+        // NOTE on draft handling:
+        //   This action is intentionally NOT annotated with `@odata.draft.bypass` and is
+        //   registered only on the active entity (`Requests`, not `Requests.drafts`).
+        //   Fiori Elements then follows its standard "save-then-call" choreography when
+        //   the user triggers Submit from edit mode:
+        //     1. Fiori first issues `draftActivate` on the draft → CAP fires our
+        //        before('SAVE','Requests') validations (title/justification/supplier) and
+        //        commits the draft to the active entity.
+        //     2. The page binding moves from the draft URL to the active URL.
+        //     3. Only then does Fiori call `submitRequest` on the (now-active) entity.
+        //     4. `TargetEntities:['']` refreshes the active URL — which still exists — so
+        //        the resulting GET succeeds and no 404 is raised.
+        //   Doing the draft-activate manually inside the handler (with `@odata.draft.bypass`)
+        //   leaves Fiori bound to the deleted draft URL and produces a 404 on refresh.
         @Common.IsActionCritical: true
         @Common.SideEffects: {
-            // Virtual fields (isApprover, isEditable) intentionally omitted from TargetProperties:
-            // TargetEntities:[''] already triggers a full entity re-read that recomputes them.
-            // Listing virtual fields here causes OData to try to resolve them in the wrong context
-            // (e.g. via the items navigation → "Requests:items.isEditable") — a known CAP issue.
             TargetProperties: ['status_code', 'aiComplianceScore', 'aiAuditNotes'],
-            TargetEntities: ['']
+            TargetEntities  : ['']
         }
         action submitRequest() returns Requests;
 
@@ -88,9 +98,16 @@ service RequestService {
     // Expose the Items entity
     // Note: No need for @odata.draft.enabled here, as Items are linked
     // to Requests via 'Composition' and are handled automatically
+    //
+    // `isEditable` is duplicated on Items so the parent's UI.UpdateHidden path
+    // (`{ $Path: 'isEditable' }`) resolves cleanly when Fiori propagates the
+    // expression into the items composition during edit/expand. Without this,
+    // requests like `Requests(ID)/items?$select=isEditable` produce a 404
+    // "Invalid resource path Requests:items.isEditable" from the OData parser.
     entity Items as projection on my.Items {
         *,
-        request.status.code as status_code
+        request.status.code as status_code,
+        virtual isEditable  : Boolean
     };
 
     // CodeLists (Dictionaries) - these should be strictly read-only for the UI
