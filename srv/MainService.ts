@@ -18,6 +18,7 @@ export default class RequestService extends cds.ApplicationService {
         const productHandler = new ProductHandler(productApi);
 
         // --- Requests ---
+        this.before('CREATE', 'Requests', requestHandler.defaultRegionOnCreate);
         this.before('UPDATE', 'Requests', requestHandler.beforeUpdate);
         this.before(['CREATE', 'UPDATE'], 'Requests', requestHandler.validateOnWrite);
         this.before('READ', 'Requests', requestHandler.injectRequiredColumns);

@@ -163,7 +163,7 @@ annotate service.Requests with @(
         approvalDate,
         justification,
         totalAmount,
-        createdAt,   // time-based dimension for the Line chart visual filter
+        createdDate,   // day-granularity dimension for the Line chart visual filter (see MainService.cds)
     ],
     
     UI.LineItem : [
@@ -300,7 +300,8 @@ annotate service.Requests with @(
 
 // Value helps + UI behavior
 annotate service.Requests with {
-    createdAt  @UI.HiddenFilter: false;
+    createdDate @UI.HiddenFilter: false;   // day-granularity filter field that drives the time visual filter
+    createdAt   @UI.HiddenFilter: true;    // raw timestamp — not a useful filter (see createdDate)
     createdBy  @UI.Hidden;
     modifiedAt @UI.Hidden;
     modifiedBy @UI.Hidden;
@@ -679,18 +680,19 @@ annotate RequestService.Requests with @(
     },
 
     // 3. Visual Filter: Total Spend Over Time (Line chart — requires time-based dimension)
-    // createdAt (Timestamp → Edm.DateTimeOffset) satisfies the Line chart requirement.
-    // The chart always displays the last 6 data points sorted ascending — MaxItems does not apply here.
+    // createdDate (date(createdAt) → Edm.Date, day granularity) is the time dimension. We group by
+    // day rather than the raw microsecond Timestamp so the line shows one point per day (real trend)
+    // and selecting a point filters `createdDate eq <day>`, which actually matches that day's rows.
     UI.Chart #VFChartCreatedAt: {
         ChartType: #Line,
         DynamicMeasures: ['@Analytics.AggregatedProperty#TotalAmountSum'],
-        Dimensions: [createdAt],
+        Dimensions: [createdDate],
         MeasureAttributes: [{
             DynamicMeasure: '@Analytics.AggregatedProperty#TotalAmountSum',
             Role: #Axis1
         }],
         DimensionAttributes: [{
-            Dimension: createdAt,
+            Dimension: createdDate,
             Role: #Category
         }]
     },
@@ -699,7 +701,7 @@ annotate RequestService.Requests with @(
     // No MaxItems here — Line charts are not bar charts; the runtime controls the visible window.
     UI.PresentationVariant #VFCreatedAtPV: {
         SortOrder: [{
-            Property: createdAt,
+            Property: createdDate,
             Descending: false
         }],
         Visualizations: ['@UI.Chart#VFChartCreatedAt']
@@ -755,7 +757,7 @@ annotate RequestService.Requests with {
         }
     );
 
-    createdAt @(
+    createdDate @(
         Common.Label: '{i18n>CreatedDate}',
         Common.ValueList #VisualFilterCreatedAt: {
             CollectionPath: 'Requests',
@@ -763,8 +765,8 @@ annotate RequestService.Requests with {
             Parameters: [
                 {
                     $Type: 'Common.ValueListParameterInOut',
-                    LocalDataProperty: createdAt,
-                    ValueListProperty: 'createdAt'
+                    LocalDataProperty: createdDate,
+                    ValueListProperty: 'createdDate'
                 }
             ]
         }

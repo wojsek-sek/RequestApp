@@ -52,7 +52,7 @@ export class RequestHandler {
         }
     };
 
-    /** Title length, justification for high amounts, positive total. */
+    /** Title length, justification for high amounts, non-negative total. */
     validateOnWrite = async (req: cds.Request) => {
         const { totalAmount, justification, title } = req.data as Partial<Request>;
 
@@ -64,9 +64,34 @@ export class RequestHandler {
             return req.error(400, 'JUSTIFICATION_REQUIRED_FOR_HIGH_AMOUNT', 'justification');
         }
 
-        if ((totalAmount ?? 1) <= 0) {
-            return req.error(400, 'AMOUNT_MUST_BE_POSITIVE', 'totalAmount');
+        // Only a genuinely negative total is invalid. A zero/empty total is a normal
+        // intermediate state (header created before any line items) — using nullish `?? 0`
+        // here would let 0 slip through the `<= 0` trap that previously misfired on it.
+        if ((totalAmount ?? 0) < 0) {
+            return req.error(400, 'AMOUNT_CANNOT_BE_NEGATIVE', 'totalAmount');
         }
+    };
+
+    /**
+     * Stamp the row-level-security key `region` on creation from the user's Region attribute.
+     *
+     * `region` is @UI.Hidden, so users never enter it — yet the @restrict on Requests filters
+     * every operation by `region = $user.Region`. Without this default a freshly created request
+     * gets region=null and, once the draft is activated, no longer matches the user's region:
+     * the creator can no longer read, edit, or submit their own request.
+     *
+     * A RegionalManager may carry several regions (e.g. [EU, PL, EN]); we stamp the first one,
+     * which satisfies the `region IN (...)` filter CAP generates for the multi-valued attribute.
+     */
+    defaultRegionOnCreate = (req: cds.Request): void => {
+        this.applyDefaultRegion(req.data as Partial<Request>, req);
+    };
+
+    private applyDefaultRegion = (data: Partial<Request>, req: cds.Request): void => {
+        if (data.region) return; // respect an explicitly supplied value
+        const attr = (req.user?.attr as { Region?: string | string[] } | undefined)?.Region;
+        const region = Array.isArray(attr) ? attr[0] : attr;
+        if (region) data.region = region;
     };
 
     /**
@@ -129,9 +154,28 @@ export class RequestHandler {
         }
     };
 
+    /**
+     * Approve a Submitted request.
+     *
+     * The UI only shows this button when `isApprover` is true, but that is cosmetic —
+     * a direct OData action call must be re-validated server-side, otherwise the creator
+     * (or any RegionalManager) could approve a New/Approved/Rejected request by hand.
+     * Two guards mirror the SoD/status rules baked into `isApprover` (see afterRead):
+     *   1. status must be 'S' (Submitted) — nothing else is ready for a decision
+     *   2. approver ≠ creator (Segregation of Duties)
+     */
     approveRequest = async (req: cds.Request) => {
         const { ID } = req.params[0] as { ID: string };
         const currentUserId = req.user.id;
+
+        const current = await SELECT.one.from(Request).where({ ID });
+        if (!current) return req.error(404, 'REQUEST_NOT_FOUND');
+        if (current.status_code !== 'S') {
+            return req.error(400, 'APPROVE_ONLY_ALLOWED_FOR_SUBMITTED');
+        }
+        if (current.createdBy === currentUserId) {
+            return req.error(403, 'APPROVAL_SOD_VIOLATION');
+        }
 
         await UPDATE(Requests)
             .set({
@@ -144,10 +188,20 @@ export class RequestHandler {
         return SELECT.one.from(Request).where({ ID });
     };
 
+    /** Reject a Submitted request. Same server-side status + SoD guards as approveRequest. */
     rejectRequest = async (req: cds.Request) => {
         const { ID } = req.params[0] as { ID: string };
         const { reason } = req.data as { reason?: string };
         const currentUserId = req.user.id;
+
+        const current = await SELECT.one.from(Request).where({ ID });
+        if (!current) return req.error(404, 'REQUEST_NOT_FOUND');
+        if (current.status_code !== 'S') {
+            return req.error(400, 'REJECT_ONLY_ALLOWED_FOR_SUBMITTED');
+        }
+        if (current.createdBy === currentUserId) {
+            return req.error(403, 'APPROVAL_SOD_VIOLATION');
+        }
 
         await UPDATE(Requests)
             .set({
@@ -259,6 +313,10 @@ export class RequestHandler {
     beforeSave = async (req: cds.Request) => {
         const data = req.data as Partial<Request>;
         if (!data.ID) return;
+
+        // Backstop for the CREATE-time region default — covers direct API callers that
+        // POST straight to the active entity without going through draftPrepare/CREATE.
+        this.applyDefaultRegion(data, req);
 
         // Only N-status requests may be saved via the edit flow.
         const current = await SELECT.one.from(Request).columns('status_code').where({ ID: data.ID });

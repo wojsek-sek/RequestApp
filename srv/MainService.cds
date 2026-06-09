@@ -33,6 +33,11 @@ service RequestService {
         status.name as statusText : String,
         virtual isApprover : Boolean,   // SoD: true when user can approve/reject (RegionalManager, not creator, status=S)
         virtual isEditable : Boolean,   // true when user has RegionalManager role AND status is N (Draft)
+        // Day-granularity created date. The raw `createdAt` is a microsecond Timestamp, so
+        // grouping/filtering on it yields one point per request and exact-instant equality that
+        // never matches. `createdDate` truncates to the day so the analytic time filter groups by
+        // day and `createdDate eq <day>` matches every request from that day.
+        date(createdAt) as createdDate : Date,
         *
     } actions {
         // Submit a New request — validates attachment, runs AI compliance, sets status N→S.
@@ -169,7 +174,7 @@ annotate RequestService.Requests with @(
             'filter',
             'search',
         ],
-        GroupableProperties: [status_code, costCenter, currency, statusText, createdAt],
+        GroupableProperties: [status_code, costCenter, currency, statusText, createdAt, createdDate],
         AggregatableProperties: [
             {
                 Property: totalAmount,
