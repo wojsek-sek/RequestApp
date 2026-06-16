@@ -62,7 +62,8 @@
       "libs": {
         "sap.m": {},
         "sap.ui.core": {},
-        "sap.fe.templates": {}
+        "sap.fe.templates": {},
+        "sap.suite.ui.commons": {}
       }
     },
     "contentDensities": {
@@ -215,6 +216,18 @@
               "content": {
                 "header": {
                   "visible": true
+                },
+                "body": {
+                  "sections": {
+                    "Timeline": {
+                      "template": "capmap.requestsui.ext.fragment.Timeline",
+                      "position": {
+                        "placement": "After",
+                        "anchor": "RequestItemsFacet"
+                      },
+                      "title": "{i18n>timeline}"
+                    }
+                  }
                 }
               },
               "navigation": {
@@ -236,6 +249,15 @@
               "navigation": {},
               "contextPath": "/Requests/items"
             }
+          }
+        }
+      }
+    },
+    "extends": {
+      "extensions": {
+        "sap.ui.controllerExtensions": {
+          "sap.fe.templates.ObjectPage.ObjectPageController#capmap.requestsui::RequestsObjectPage": {
+            "controllerName": "capmap.requestsui.ext.controller.RequestObject"
           }
         }
       }

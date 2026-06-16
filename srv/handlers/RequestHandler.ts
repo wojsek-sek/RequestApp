@@ -422,6 +422,8 @@ export class RequestHandler {
                 status_code:       newStatusCode,
                 aiComplianceScore: aiScore,
                 aiAuditNotes:      aiNotes,
+                approvalDate: new Date().toISOString(),
+                approver:    req.user.id 
             })
             .where({ ID });
 

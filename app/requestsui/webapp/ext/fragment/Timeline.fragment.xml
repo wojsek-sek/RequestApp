@@ -1,0 +1,20 @@
+<core:FragmentDefinition xmlns:core="sap.ui.core" xmlns="sap.m" xmlns:common="sap.suite.ui.commons">
+	<VBox id="VBox" class="sapUiSmallMargin">
+		<common:Timeline
+			id="idRequestTimeline"
+			showHeaderBar="false"
+			enableScroll="false"
+			content="{timeline>/events}">
+			<common:content>
+				<common:TimelineItem
+					id="idRequestTemplateItem"
+					dateTime="{timeline>dateTime}"
+					title="{timeline>title}"
+					text="{timeline>text}"
+					userName="{timeline>userName}"
+					icon="{timeline>icon}">
+				</common:TimelineItem>
+			</common:content>
+		</common:Timeline>
+	</VBox>
+</core:FragmentDefinition>
