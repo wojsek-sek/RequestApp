@@ -4,15 +4,31 @@
 			id="idRequestTimeline"
 			showHeaderBar="false"
 			enableScroll="false"
+			axisOrientation="Horizontal"
+			sortOldestFirst="true"
 			content="{timeline>/events}">
 			<common:content>
 				<common:TimelineItem
 					id="idRequestTemplateItem"
+					iconSize="XL"
 					dateTime="{timeline>dateTime}"
 					title="{timeline>title}"
 					text="{timeline>text}"
 					userName="{timeline>userName}"
-					icon="{timeline>icon}">
+					icon="{timeline>icon}"
+					status="{timeline>status}">
+					<!-- embeddedControl replaces the text property — wrap both in a VBox -->
+					<VBox id="idTimelineItemBox">
+						<Text
+							id="idTimelineItemText"
+							text="{timeline>text}"
+							visible="{= !!${timeline>text} }"
+							wrapping="true"/>
+						<ObjectStatus
+							id="idTimelineStatus"
+							text="{timeline>statusText}"
+							state="{= RegExp('[0-9]').test(${timeline>statusText}) ? ${timeline>statusAI} : ${timeline>status} }"/>
+					</VBox>
 				</common:TimelineItem>
 			</common:content>
 		</common:Timeline>

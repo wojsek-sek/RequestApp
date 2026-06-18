@@ -31,6 +31,10 @@ entity Requests : cuid, managed, ApprovalTracking {
 
     aiComplianceScore : Integer;
     aiAuditNotes      : String;
+    aiCheckedAt       : DateTime  @title: 'AI Check Timestamp';
+
+    submittedAt       : DateTime  @title: 'Submitted At';
+    withdrawnAt       : DateTime  @title: 'Withdrawn At';
 
     // Workflow reason fields — populated by the corresponding bound action
     rejectReason  : String(500) @title: 'Rejection Reason';

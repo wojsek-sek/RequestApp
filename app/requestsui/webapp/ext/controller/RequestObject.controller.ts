@@ -19,11 +19,14 @@ interface RequestData {
 	costCenter?: string;
 	aiComplianceScore?: number | null;
 	aiAuditNotes?: string | null;
+	aiCheckedAt?: string | null;
 	approver?: string | null;
 	approvalDate?: string | null;
 	justification?: string | null;
 	rejectReason?: string | null;
 	cancelReason?: string | null;
+	submittedAt?: string | null;
+	withdrawnAt?: string | null;
 }
 
 interface TimelineEvent {
@@ -33,6 +36,38 @@ interface TimelineEvent {
 	dateTime?: string;
 	userName?: string;
 	icon: string;
+	/**
+	 * sap.ui.core.ValueState string that colors the timeline node/icon natively (no CSS).
+	 * Mirrors the backend criticality rules:
+	 *   None=neutral/gray · Information=blue · Success=green · Warning=orange · Error=red
+	 */
+	status: string;
+	statusAI?: string; // optional extra field for the AI score label (green/orange/red)
+}
+
+/**
+ * Map an AI compliance score to a ValueState using the SAME thresholds as the backend
+ * AIScoreDataPoint criticality (annotations.cds): >=80 → green, <50 → red, else orange.
+ */
+function aiScoreState(score: number): string {
+	if (score >= 80) {
+		return 'Success';
+	}
+
+	return score < 50 ? 'Error' : 'Warning';
+}
+
+/**
+ * i18n key for the AI status label — uses the SAME thresholds as aiScoreState so the
+ * colored text and the colored icon always agree:
+ *   >=80 → positive (green) · <50 → non-compliant (red) · 50-79 → review needed (orange)
+ */
+function aiScoreTextKey(score: number): string {
+	if (score >= 80) {
+		return 'timelineAiPositive';
+	}
+
+	return score < 50 ? 'timelineAiNegative' : 'timelineAiReview';
 }
 
 /**
@@ -60,29 +95,48 @@ function buildTimeline(data: RequestData, bundle: ResourceBundle): TimelineEvent
 		text: data.costCenter ? t('timelineCostCenter', [data.costCenter]) : undefined,
 		dateTime: formatDateTime(data.createdAt),
 		userName: data.createdBy ?? undefined,
-		icon: 'sap-icon://create'
+		icon: 'sap-icon://create',
+		status: 'None' // gray / neutral
 	});
 
 	// 2) AI Compliance Check — only once the AI has scored the request.
 	if (data.aiComplianceScore != null) {
 		events.push({
-			title: t('timelineAiCheck', [data.aiComplianceScore]),
-			statusText: data.aiComplianceScore >= 70 ? t('timelineAiPositive') : t('timelineAiReview'),
+			title: t('timelineAiCheck'),
+			statusText: t('timelineAiScore', [data.aiComplianceScore, t(aiScoreTextKey(data.aiComplianceScore))]),
 			text: data.aiAuditNotes ?? undefined,
+			dateTime: formatDateTime(data.aiCheckedAt),
 			userName: t('timelineAiUser'),
-			icon: 'sap-icon://artificial-intelligence'
+			icon: 'sap-icon://ai',
+			status: 'Information',
+			statusAI: aiScoreState(data.aiComplianceScore)
 		});
 	}
 
-	// 3) Submitted — present once the request left the New state.
-	if (status && status !== 'N') {
+	// 3) Submitted — shown whenever the request was ever submitted (submittedAt set).
+	//    Using submittedAt instead of modifiedAt: modifiedAt is overwritten on every subsequent
+	//    operation (approve/reject/withdraw) so it would show the wrong date.
+	if (data.submittedAt) {
 		events.push({
 			title: t('timelineSubmitted'),
 			statusText: t('timelineSubmitted'),
 			text: t('timelineSubmittedText'),
-			dateTime: formatDateTime(data.modifiedAt),
+			dateTime: formatDateTime(data.submittedAt),
 			userName: data.modifiedBy ?? undefined,
-			icon: 'sap-icon://outbox'
+			icon: 'sap-icon://outbox',
+			status: 'Information'
+		});
+	}
+
+	// 3b) Withdrawn — request was pulled back to New for revision.
+	if (data.withdrawnAt) {
+		events.push({
+			title: t('timelineWithdrawn'),
+			statusText: t('timelineWithdrawn'),
+			text: t('timelineWithdrawnText'),
+			dateTime: formatDateTime(data.withdrawnAt),
+			icon: 'sap-icon://undo',
+			status: 'None'
 		});
 	}
 
@@ -94,7 +148,8 @@ function buildTimeline(data: RequestData, bundle: ResourceBundle): TimelineEvent
 			text: data.justification ?? undefined,
 			dateTime: formatDateTime(data.approvalDate),
 			userName: data.approver ?? undefined,
-			icon: 'sap-icon://accept'
+			icon: 'sap-icon://accept',
+			status: 'Success' // green
 		});
 	} else if (status === 'R') {
 		events.push({
@@ -103,14 +158,16 @@ function buildTimeline(data: RequestData, bundle: ResourceBundle): TimelineEvent
 			text: data.rejectReason ?? undefined,
 			dateTime: formatDateTime(data.approvalDate),
 			userName: data.approver ?? undefined,
-			icon: 'sap-icon://decline'
+			icon: 'sap-icon://decline',
+			status: 'Error' // red
 		});
 	} else if (status === 'C') {
 		events.push({
 			title: t('timelineCancelled'),
 			statusText: t('timelineCancelled'),
 			text: data.cancelReason ?? undefined,
-			icon: 'sap-icon://sys-cancel'
+			icon: 'sap-icon://sys-cancel',
+			status: 'Warning' // orange (mirrors status criticality 2)
 		});
 	}
 
@@ -130,8 +187,9 @@ async function refreshTimeline(view: View, oContext: object | null): Promise<voi
 	// a late property request for exactly these paths and returns their values in order.
 	const fields: (keyof RequestData)[] = [
 		'createdAt', 'createdBy', 'modifiedAt', 'modifiedBy', 'status_code', 'costCenter',
-		'aiComplianceScore', 'aiAuditNotes', 'approver', 'approvalDate', 'justification',
-		'rejectReason', 'cancelReason'
+		'aiComplianceScore', 'aiAuditNotes', 'aiCheckedAt',
+		'approver', 'approvalDate', 'justification',
+		'rejectReason', 'cancelReason', 'submittedAt', 'withdrawnAt'
 	];
 
 	const ctx = oContext as ODataV4Context;

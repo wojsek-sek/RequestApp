@@ -416,14 +416,18 @@ export class RequestHandler {
             newStatusCode = 'S';
         }
 
-        // 4. Persist status + AI results
+        // 4. Persist status + AI results + workflow timestamps
+        const now = new Date().toISOString();
         await UPDATE(Requests)
             .set({
                 status_code:       newStatusCode,
                 aiComplianceScore: aiScore,
                 aiAuditNotes:      aiNotes,
-                approvalDate: new Date().toISOString(),
-                approver:    req.user.id 
+                aiCheckedAt:       aiScore !== null ? now : null,
+                submittedAt:       now,
+                withdrawnAt:       null,
+                approvalDate:      now,
+                approver:          req.user.id,
             })
             .where({ ID });
 
@@ -487,11 +491,13 @@ export class RequestHandler {
 
         await UPDATE(Requests)
             .set({
-                status_code  : 'N',
-                approver     : null,
-                approvalDate : null,
+                status_code       : 'N',
+                approver          : null,
+                approvalDate      : null,
                 aiComplianceScore : null,
-                aiAuditNotes : null,
+                aiAuditNotes      : null,
+                aiCheckedAt       : null,
+                withdrawnAt       : new Date().toISOString(),
             })
             .where({ ID });
 
