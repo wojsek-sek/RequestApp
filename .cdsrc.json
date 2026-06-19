@@ -14,16 +14,16 @@
         "users": {
           "admin-eu": {
             "password" : "test",
-            "roles": ["Viewer", "RegionalManager"],
+            "roles": ["RegionalManager"],
             "attr": {
               "Region": ["EU","PL","EN"]
             }
           },
           "admin-us": {
             "password" : "test2",
-            "roles": ["Viewer", "RegionalManager"],
+            "roles": ["RegionalManager"],
             "attr": {
-              "Region": ["US"]
+              "Region": ["US","EU"]
             }
           },
           "readonly-user": {
@@ -87,6 +87,15 @@
         "VectorEngine": {
           "kind": "local-vector-mock",
           "impl": "srv/mocks/vector-engine-mock.js"
+        }
+      },
+      "[test]": {
+        "db": {
+          "credentials": { "url": ":memory:" }
+        },
+        "AI_Agent_Hub": {
+          "kind": "mock",
+          "impl": "srv/mocks/ai-agent-hub-mock.js"
         }
       }
     }

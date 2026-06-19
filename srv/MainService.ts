@@ -44,7 +44,7 @@ export default class RequestService extends cds.ApplicationService {
             'Items.drafts',
             itemHandler.recalculateRequestTotalAfterDraftChange
         );
-        this.before('PATCH', 'Items.drafts', itemHandler.patchRecalculateItemTotal);
+        this.before(['CREATE', 'PATCH'], 'Items.drafts', itemHandler.calculateItemTotal);
 
         // --- CostCenters mashup ---
         this.on('READ', 'CostCenters', costCenterHandler.read);

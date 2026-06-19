@@ -6,7 +6,6 @@
     "@cap-js/attachments": "^3.12.2",
     "@cap-js/hana": "^2",
     "@google/genai": "^2.3.0",
-    "@google/generative-ai": "^0.24.1",
     "@sap-cloud-sdk/connectivity": "^4.6.0",
     "@sap-cloud-sdk/http-client": "^4.6.0",
     "@sap-cloud-sdk/resilience": "^4.5.1",
@@ -15,6 +14,7 @@
     "@sap/xssec": "^4"
   },
   "devDependencies": {
+    "@cap-js/cds-test": "^1.0.1",
     "@cap-js/cds-typer": ">=0.1",
     "@cap-js/cds-types": "^0.15.0",
     "@cap-js/mcp-server": "^0.0.5",
@@ -25,6 +25,7 @@
     "@types/node": "^24.0.0",
     "@ui5/mcp-server": "^0.2.11",
     "cds-plugin-ui5": "^0.13.0",
+    "jest": "^30.4.2",
     "mbt": "^1.2.45",
     "tsx": "^4",
     "typescript": "^5"
@@ -34,7 +35,18 @@
     "watch": "cds watch",
     "build": "mbt build",
     "watch-requestsui": "cds watch --open capmap.requestsui/index.html?sap-ui-xx-viewCache=false --livereload false",
-    "seed:attachments": "node scripts/seed-test-attachments.js"
+    "seed:attachments": "node scripts/seed-test-attachments.js",
+    "test": "jest --testEnvironment=node --runInBand"
+  },
+  "jest": {
+    "testTimeout": 60000,
+    "testMatch": ["**/test/**/*.test.js"],
+    "modulePathIgnorePatterns": ["<rootDir>/gen/"],
+    "setupFiles": ["./test/setup.js"],
+    "transform": {
+      "^.+\\.tsx?$": "./test/tsx-transform.js"
+    },
+    "transformIgnorePatterns": ["node_modules/(?!(@sap/cds|@cap-js)/)"]
   },
   "imports": {
     "#cds-models/*": "./@cds-models/*/index.js"

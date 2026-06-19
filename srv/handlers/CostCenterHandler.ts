@@ -1,5 +1,7 @@
 import cds from '@sap/cds';
 
+const LOG = cds.log('costcenters');
+
 /** Mashup: Cost Centers from S/4 V2 + virtual Name/Description from to_Text. */
 export class CostCenterHandler {
     constructor(private readonly costCenterApi: any) {}
@@ -8,7 +10,7 @@ export class CostCenterHandler {
         try {
             return await this.costCenterApi.run(req.query);
         } catch (error) {
-            console.error('[Mock/API Error] CostCenters:', (error as Error).message);
+            LOG.error('CostCenters fetch failed, returning mock fallback:', (error as Error).message);
             return [
                 { CostCenter: '1000000001', CompanyCode: '1000' },
                 { CostCenter: '1000000002', CompanyCode: '1000' },
@@ -29,12 +31,15 @@ export class CostCenterHandler {
         }
     };
 
-    afterRead = (each: any, req: cds.Request) => {
-        if (!each) return;
+    // CAP (cds 7+) always passes the full result set as an array to after('READ') handlers,
+    // so we normalize and iterate — matching RequestHandler/ItemHandler. Treating the argument
+    // as a single row left Name/Description unpopulated (the array has no `to_Text`).
+    afterRead = (results: any, req: cds.Request) => {
+        const rows = Array.isArray(results) ? results : [results];
+        const sapLang = (req.locale || 'en').substring(0, 2).toUpperCase();
 
-        if (each.to_Text && each.to_Text.length > 0) {
-            const userLocale = req.locale || 'en';
-            const sapLang = userLocale.substring(0, 2).toUpperCase();
+        for (const each of rows) {
+            if (!each?.to_Text?.length) continue;
 
             const textRecord =
                 each.to_Text.find((t: any) => t.Language === sapLang) ||

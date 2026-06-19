@@ -30,7 +30,7 @@ entity Requests : cuid, managed, ApprovalTracking {
     attachments       : Composition of many Attachments;
 
     aiComplianceScore : Integer;
-    aiAuditNotes      : String;
+    aiAuditNotes      : String(1000);
     aiCheckedAt       : DateTime  @title: 'AI Check Timestamp';
 
     submittedAt       : DateTime  @title: 'Submitted At';

@@ -4,6 +4,12 @@ import { executeHttpRequest } from '@sap-cloud-sdk/http-client';
 import { GoogleGenAI } from '@google/genai';
 import { PROMPTS } from '../utils/PromptTemplates';
 
+/** Scoped logger — replaces ad-hoc console.* so log levels stay configurable in prod. */
+const LOG = cds.log('requests');
+
+/** Pseudo-user recorded as the approver when the AI compliance agent reaches a final decision (A/R). */
+const AI_APPROVER_ID = 'AI_COMPLIANCE_AGENT';
+
 // Shapes returned by the AI Agent Hub mock — mirrors ai-agent-hub-mock.js
 interface AnalysisResult {
     requestId: string;
@@ -108,6 +114,9 @@ export class RequestHandler {
      *   status_code — criticality icon in List Report
      *   isEditable  — Edit button state (UpdateHidden, UpdateRestrictions)
      *   isApprover  — Approve/Reject button state (OperationAvailable, SoD)
+     *   createdBy   — SoD input for isApprover (hidden field, never $select'd by Fiori).
+     *                 Without it `afterRead` sees createdBy=undefined → isApprover wrongly
+     *                 true for the creator → Approve/Reject buttons leak into their view.
      */
     injectRequiredColumns = (req: cds.Request): void => {
         const query = req.query?.SELECT;
@@ -116,7 +125,7 @@ export class RequestHandler {
         const cols = query.columns as Array<{ ref?: string[] }>;
         const has  = (name: string) => cols.some(c => c.ref?.at(-1) === name);
 
-        const REQUIRED = ['status_code', 'isEditable', 'isApprover'] as const;
+        const REQUIRED = ['status_code', 'isEditable', 'isApprover', 'createdBy'] as const;
         for (const field of REQUIRED) {
             if (!has(field)) {
                 cols.push({ ref: [field] });
@@ -269,7 +278,7 @@ export class RequestHandler {
     /** Per-supplier S/4HANA check; isolates per-supplier error reporting from checkSupplier. */
     private validateOneSupplier = async (supplierId: string, req: cds.Request): Promise<boolean> => {
         try {
-            console.log(`[SDK] Validating supplier: ${supplierId}...`);
+            LOG.info('Validating supplier:', supplierId);
             const response = await executeHttpRequest(
                 { destinationName: 'S4HANA_DESTINATION' },
                 {
@@ -289,10 +298,10 @@ export class RequestHandler {
             const e = error as { message?: string; response?: { status?: number } };
             if (!e.response) {
                 // No HTTP response = destination not configured (local dev) — allow and warn.
-                console.warn(`[SDK] S/4HANA unreachable, skipping supplier check for ${supplierId}: ${e.message ?? 'unknown'}`);
+                LOG.warn(`S/4HANA unreachable, skipping supplier check for ${supplierId}:`, e.message ?? 'unknown');
                 return true;
             }
-            console.error('[SDK ERROR] S/4HANA returned an error:', e.message);
+            LOG.error('S/4HANA returned an error:', e.message);
             if (e.response.status === 404) {
                 req.error(400, 'SUPPLIER_NOT_FOUND', undefined, [supplierId]);
             } else {
@@ -383,7 +392,7 @@ export class RequestHandler {
             return req.error(400, 'ATTACH_REQUIRED_FOR_SUBMIT');
         }
 
-        // 3. AI compliance check — graceful degradation if hub is unavailable
+        // 5. AI compliance check — graceful degradation if hub is unavailable
         let newStatusCode: 'S' | 'A' | 'R' = 'S';
         let aiScore: number | null = null;
         let aiNotes: string | null = null;
@@ -411,13 +420,18 @@ export class RequestHandler {
                 newStatusCode = 'S';
             }
         } catch (e: unknown) {
-            console.warn('[AI] Agent Hub unavailable, submitting without compliance check:',
+            LOG.warn('Agent Hub unavailable, submitting without compliance check:',
                 (e as { message?: string })?.message ?? String(e));
             newStatusCode = 'S';
         }
 
-        // 4. Persist status + AI results + workflow timestamps
+        // 6. Persist status + AI results + workflow timestamps.
+        //    Approval tracking (approver/approvalDate) is stamped ONLY when the AI reached a
+        //    final decision (A/R) — and the approver is the AI agent, not the submitter. A plain
+        //    Submit (S) is still awaiting a human approver, so these stay null; otherwise the UI
+        //    would show the submitter as the approver before anyone has decided.
         const now = new Date().toISOString();
+        const aiDecided = newStatusCode === 'A' || newStatusCode === 'R';
         await UPDATE(Requests)
             .set({
                 status_code:       newStatusCode,
@@ -426,8 +440,8 @@ export class RequestHandler {
                 aiCheckedAt:       aiScore !== null ? now : null,
                 submittedAt:       now,
                 withdrawnAt:       null,
-                approvalDate:      now,
-                approver:          req.user.id,
+                approvalDate:      aiDecided ? now : null,
+                approver:          aiDecided ? AI_APPROVER_ID : null,
             })
             .where({ ID });
 
@@ -541,7 +555,7 @@ export class RequestHandler {
 
             req.info('AI_JUSTIFICATION_SUCCESS');
         } catch (error: unknown) {
-            console.error('[AI] Generation failed:', error);
+            LOG.error('AI justification generation failed:', error);
             req.error(500, 'AI_GENERATION_ERROR');
         }
     };

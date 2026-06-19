@@ -1,5 +1,7 @@
 import cds from '@sap/cds';
 
+const LOG = cds.log('products');
+
 /** Mashup: Products from S/4 with localized Description from to_Description expand. */
 export class ProductHandler {
     constructor(private readonly productApi: any) {}
@@ -58,7 +60,7 @@ export class ProductHandler {
                 Description: pickProductDescription(descRowsFromExpand(item.to_Description)),
             }));
         } catch (err) {
-            console.error('Error fetching Products from S/4HANA:', err);
+            LOG.error('Error fetching Products from S/4HANA:', err);
             return req.reject(502, 'PRODUCT_FETCH_ERROR');
         }
     };

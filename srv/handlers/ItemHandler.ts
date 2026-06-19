@@ -65,23 +65,19 @@ export class ItemHandler {
         }
     };
 
-    /** Merge PATCH for quantity/price with server-side itemTotal (delta-friendly). */
-    patchRecalculateItemTotal = async (req: cds.Request) => {
+    /** Compute itemTotal on CREATE and merge with server-side values on PATCH (delta-friendly). */
+    calculateItemTotal = async (req: cds.Request) => {
         if (!('quantity' in (req.data as any)) && !('price' in (req.data as any))) {
             return;
         }
 
         const itemKeys = req.params[req.params.length - 1];
-        const dbItem = await cds.tx(req).run(
-            SELECT.one.from(req.target as any).where({
-                ID: itemKeys.ID,
-            })
-        );
+        const dbItem = itemKeys?.ID
+            ? await cds.tx(req).run(SELECT.one.from(req.target as any).where({ ID: itemKeys.ID }))
+            : null;
 
-        if (!dbItem) return;
-
-        let newQty = 'quantity' in (req.data as any) ? (req.data as any).quantity : (dbItem as any).quantity;
-        let newPrice = 'price' in (req.data as any) ? (req.data as any).price : (dbItem as any).price;
+        let newQty = 'quantity' in (req.data as any) ? (req.data as any).quantity : (dbItem as any)?.quantity;
+        let newPrice = 'price' in (req.data as any) ? (req.data as any).price : (dbItem as any)?.price;
 
         newQty = Number(newQty) || 0;
         newPrice = Number(newPrice) || 0;
